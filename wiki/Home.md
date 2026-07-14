@@ -14,16 +14,16 @@ RepoDeck provides:
 
 Explore the documentation sections to learn more about using and developing RepoDeck:
 
-### 🌟 [Features & Capabilities](Features.md)
+### 🌟 [Features & Capabilities](Features)
 Learn about the core capabilities of RepoDeck, including the repo initializer, interactive Kanban boards, inline editable tables, timeline views, and branch generation.
 
-### 🏗️ [Architecture & Technical Design](Architecture.md)
+### 🏗️ [Architecture & Technical Design](Architecture)
 Deep dive into the extension codebase. Understand the relationship between the VS Code Extension Host (backend) and Preact Webviews (frontend), state management, caching systems, and GraphQL vs REST APIs.
 
-### 💻 [Developer & Contributor Guide](Developer-Guide.md)
+### 💻 [Developer & Contributor Guide](Developer-Guide)
 Find instructions on setting up your local development workspace, compiling sources, launching debug sessions, running type-checks, packaging vsix bundles, and coding guidelines.
 
-### ❓ [Troubleshooting & FAQ](Troubleshooting-&-FAQ.md)
+### ❓ [Troubleshooting & FAQ](Troubleshooting-&-FAQ)
 Solve common issues such as missing token scopes, Project Board error states, API rate limit exhaustion, and fork-specific configurations.
 
 ---
