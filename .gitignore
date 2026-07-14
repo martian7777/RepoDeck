@@ -1,0 +1,16 @@
+.skills
+.agents
+.claude
+
+node_modules/
+.github/
+.claude/
+.vscode/
+.v
+dist/
+*.vsix
+
+# Built webview bundles; the sources live in webview/.
+media/board.js
+media/form.js
+media/*.map

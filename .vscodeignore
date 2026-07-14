@@ -1,0 +1,14 @@
+.vscode/**
+.github/**
+.claude/**
+.agents/**
+src/**
+webview/**
+node_modules/**
+**/*.ts
+**/*.tsx
+**/*.map
+tsconfig.json
+esbuild.mjs
+skills-lock.json
+.gitignore

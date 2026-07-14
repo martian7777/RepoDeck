@@ -1,0 +1,248 @@
+/* Every colour here is a VS Code theme variable, so light, dark, and high-contrast
+   themes all work without a single media query or hardcoded hex. */
+
+body {
+	margin: 0;
+	padding: 0;
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+}
+
+button {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-button-secondaryForeground);
+	background: var(--vscode-button-secondaryBackground);
+	border: none;
+	border-radius: 2px;
+	padding: 4px 10px;
+	cursor: pointer;
+}
+button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+button.primary {
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+}
+button.primary:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.muted {
+	color: var(--vscode-descriptionForeground);
+}
+.error {
+	color: var(--vscode-errorForeground);
+	border-left: 2px solid var(--vscode-errorForeground);
+	padding-left: 8px;
+}
+.state {
+	padding: 32px;
+	color: var(--vscode-descriptionForeground);
+	max-width: 48ch;
+	line-height: 1.5;
+}
+
+/* ---- Board ---- */
+
+.board {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+}
+.board header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	flex: 0 0 auto;
+}
+.board h1 {
+	font-size: 1.1em;
+	margin: 0;
+}
+.board .actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+/* The board scrolls horizontally inside itself; the page body never does. */
+.columns {
+	display: flex;
+	gap: 12px;
+	padding: 16px;
+	overflow-x: auto;
+	align-items: flex-start;
+	flex: 1 1 auto;
+}
+
+.column {
+	flex: 0 0 280px;
+	display: flex;
+	flex-direction: column;
+	max-height: 100%;
+	background: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 6px;
+	padding: 10px;
+}
+.column.over {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-list-dropBackground);
+}
+.column h2 {
+	font-size: 0.85em;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	margin: 0 0 10px;
+	display: flex;
+	justify-content: space-between;
+	color: var(--vscode-descriptionForeground);
+}
+.column .count {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 10px;
+	padding: 0 6px;
+}
+.cards {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	overflow-y: auto;
+	min-height: 40px;
+}
+
+.card {
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 4px;
+	padding: 8px 10px;
+	cursor: grab;
+}
+.card:hover {
+	border-color: var(--vscode-focusBorder);
+}
+.card.dragging {
+	opacity: 0.4;
+	cursor: grabbing;
+}
+.card .title {
+	margin: 0 0 6px;
+	line-height: 1.35;
+}
+.card footer {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	align-items: center;
+	font-size: 0.85em;
+	color: var(--vscode-descriptionForeground);
+}
+.card .who {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 10px;
+	padding: 0 6px;
+}
+.empty {
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.85em;
+	text-align: center;
+	padding: 12px 0;
+	margin: 0;
+	opacity: 0.6;
+}
+.column.locked .empty {
+	display: none;
+}
+
+/* ---- Form ---- */
+
+.form {
+	max-width: 720px;
+	margin: 0 auto;
+	padding: 24px 16px 48px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+.form h1 {
+	font-size: 1.3em;
+	margin: 0;
+}
+.form p {
+	margin: 0;
+}
+.form label {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+.form input,
+.form textarea {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 2px;
+	padding: 6px 8px;
+	resize: vertical;
+}
+.form textarea {
+	font-family: var(--vscode-editor-font-family);
+	line-height: 1.5;
+}
+.form input:focus,
+.form textarea:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+.form fieldset {
+	border: none;
+	padding: 0;
+	margin: 0;
+}
+.form legend {
+	padding: 0 0 6px;
+	color: var(--vscode-descriptionForeground);
+}
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	border-radius: 12px;
+	border: 1px solid var(--vscode-panel-border);
+	background: transparent;
+	color: var(--vscode-foreground);
+}
+.chip.on {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+.chip .dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+.form .actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 6px;
+}

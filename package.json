@@ -1,0 +1,165 @@
+{
+  "name": "repodeck",
+  "displayName": "RepoDeck — GitHub Issues, PRs & Boards",
+  "description": "Initialize repos, create and assign issues, and manage GitHub Project boards with a real kanban — without leaving your editor.",
+  "version": "0.1.0",
+  "publisher": "martian7777",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "github",
+    "issues",
+    "pull requests",
+    "project board",
+    "kanban"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/martian7777/repodeck.git"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "repodeck",
+          "title": "RepoDeck",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "repodeck": [
+        {
+          "id": "repodeck.issues",
+          "name": "Issues"
+        },
+        {
+          "id": "repodeck.pulls",
+          "name": "Pull Requests"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "repodeck.issues",
+        "contents": "This folder isn't connected to a GitHub repository yet.\n[Initialize Repository](command:repodeck.initRepo)\nAlready have one? Sign in to get started.\n[Sign in to GitHub](command:repodeck.signIn)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "repodeck.signIn",
+        "title": "Sign in to GitHub",
+        "category": "RepoDeck"
+      },
+      {
+        "command": "repodeck.signOut",
+        "title": "Sign out",
+        "category": "RepoDeck"
+      },
+      {
+        "command": "repodeck.initRepo",
+        "title": "Initialize Repository",
+        "category": "RepoDeck",
+        "icon": "$(repo-create)"
+      },
+      {
+        "command": "repodeck.createIssue",
+        "title": "Create Issue",
+        "category": "RepoDeck",
+        "icon": "$(add)"
+      },
+      {
+        "command": "repodeck.openIssue",
+        "title": "Open Issue",
+        "category": "RepoDeck"
+      },
+      {
+        "command": "repodeck.refreshIssues",
+        "title": "Refresh",
+        "category": "RepoDeck",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "repodeck.openBoard",
+        "title": "Open Project Board",
+        "category": "RepoDeck",
+        "icon": "$(project)"
+      },
+      {
+        "command": "repodeck.addIssueToBoard",
+        "title": "Add Issue to Project Board",
+        "category": "RepoDeck"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "repodeck.createIssue",
+          "when": "view == repodeck.issues && repodeck:hasRepo",
+          "group": "navigation@1"
+        },
+        {
+          "command": "repodeck.openBoard",
+          "when": "view == repodeck.issues && repodeck:hasRepo",
+          "group": "navigation@2"
+        },
+        {
+          "command": "repodeck.refreshIssues",
+          "when": "view == repodeck.issues",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "repodeck.addIssueToBoard",
+          "when": "view == repodeck.issues && viewItem == issue",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "RepoDeck",
+      "properties": {
+        "repodeck.remoteName": {
+          "type": "string",
+          "default": "origin",
+          "description": "The git remote RepoDeck reads the GitHub owner/repo from."
+        },
+        "repodeck.defaultProject": {
+          "type": "string",
+          "default": "",
+          "description": "Node ID of the GitHub Project to open by default for this workspace."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "package": "node esbuild.mjs --production && vsce package",
+    "typecheck": "tsc --noEmit",
+    "vscode:prepublish": "node esbuild.mjs --production"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.2",
+    "preact": "^10.24.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.0",
+    "ovsx": "^0.10.1",
+    "typescript": "^5.6.3"
+  }
+}
