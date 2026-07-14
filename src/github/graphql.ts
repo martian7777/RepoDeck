@@ -15,46 +15,6 @@ export interface ProjectSummary {
 	title: string;
 }
 
-export interface BoardColumn {
-	optionId: string;
-	name: string;
-	/** GitHub's option colour, e.g. GREEN. Not a hex value. */
-	color: string;
-	description: string;
-	cards: BoardCard[];
-}
-
-export interface BoardCard {
-	/** ProjectV2Item id — NOT the issue id. Mutations key off this. */
-	itemId: string;
-	title: string;
-	number: number | undefined;
-	url: string | undefined;
-	state: string | undefined;
-	assignees: string[];
-	labels: { name: string; color: string }[];
-	optionId: string | undefined;
-	/**
-	 * Straight from the API's `__typename`, never inferred. Guessing "no number means
-	 * draft" silently sends real issues to the draft-conversion mutation, which fails
-	 * with "Cannot convert an issue into an issue".
-	 */
-	isDraft: boolean;
-}
-
-export interface Board {
-	projectId: string;
-	title: string;
-	/** The single-select field the columns come from. */
-	fieldId: string;
-	fieldName: string;
-	columns: BoardColumn[];
-	/** Items with no value for that field. GitHub shows these in a "No Status" column. */
-	unassigned: BoardCard[];
-	/** Every single-select field, so the user can group the board by a different one. */
-	groupableFields: { id: string; name: string }[];
-}
-
 /** The eight colours GitHub allows on a single-select option. */
 export const OPTION_COLORS = [
 	'GRAY',
@@ -86,14 +46,6 @@ export interface ProjectField {
 	options?: { id: string; name: string; color?: string; description?: string }[];
 }
 
-/** Raised when a project has no single-select field, so it cannot be shown as a board. */
-export class NoBoardFieldError extends Error {
-	constructor(readonly projectTitle: string) {
-		super(
-			`"${projectTitle}" has no single-select field, so it has no board columns. Add a field like "Status" to this project on GitHub.`,
-		);
-	}
-}
 
 export async function listProjects(
 	octokit: Octokit,
@@ -117,143 +69,6 @@ export async function listProjects(
 	return (data[root]?.projectsV2.nodes ?? []).filter((p) => !p.closed);
 }
 
-interface RawField {
-	id: string;
-	name: string;
-	options?: { id: string; name: string; color: string; description: string }[];
-}
-
-interface RawContent {
-	__typename: string;
-	title?: string;
-	number?: number;
-	url?: string;
-	state?: string;
-	assignees?: { nodes: { login: string }[] };
-	labels?: { nodes: { name: string; color: string }[] };
-}
-
-export async function fetchBoard(
-	octokit: Octokit,
-	projectId: string,
-	preferredFieldId?: string,
-): Promise<Board> {
-	// One round trip for the schema and the items. `fieldValueByName` needs the field's
-	// name, which we don't know yet, so the status value is read off each item's full
-	// field-value list instead.
-	const query = `
-		query($id: ID!) {
-			node(id: $id) {
-				... on ProjectV2 {
-					title
-					fields(first: 50) {
-						nodes {
-							... on ProjectV2SingleSelectField {
-								id name
-								options { id name color description }
-							}
-						}
-					}
-					items(first: 100) {
-						nodes {
-							id
-							fieldValues(first: 20) {
-								nodes {
-									... on ProjectV2ItemFieldSingleSelectValue {
-										optionId
-										field { ... on ProjectV2SingleSelectField { id } }
-									}
-								}
-							}
-							content {
-								__typename
-								... on Issue {
-									title number url state
-									assignees(first: 5) { nodes { login } }
-									labels(first: 5) { nodes { name color } }
-								}
-								... on PullRequest {
-									title number url state
-									assignees(first: 5) { nodes { login } }
-									labels(first: 5) { nodes { name color } }
-								}
-								... on DraftIssue { title }
-							}
-						}
-					}
-				}
-			}
-		}`;
-
-	const data = await octokit.graphql<{
-		node: {
-			title: string;
-			fields: { nodes: (RawField | Record<string, never>)[] };
-			items: {
-				nodes: {
-					id: string;
-					fieldValues: { nodes: ({ optionId?: string; field?: { id?: string } } | Record<string, never>)[] };
-					content: RawContent | null;
-				}[];
-			};
-		};
-	}>(query, { id: projectId });
-
-	const project = data.node;
-
-	// Inline fragments on non-matching types yield `{}`, so anything without options is
-	// a field type we can't build columns from.
-	const selectable = (project.fields.nodes as RawField[]).filter((f) => f.options !== undefined);
-	const field = selectable.find((f) => f.id === preferredFieldId) ?? selectable[0];
-	if (!field) {
-		throw new NoBoardFieldError(project.title);
-	}
-
-	const columns: BoardColumn[] = field.options!.map((o) => ({
-		optionId: o.id,
-		name: o.name,
-		color: o.color ?? 'GRAY',
-		description: o.description ?? '',
-		cards: [],
-	}));
-	const byOption = new Map(columns.map((c) => [c.optionId, c]));
-	const unassigned: BoardCard[] = [];
-
-	for (const item of project.items.nodes) {
-		const value = item.fieldValues.nodes.find(
-			(v) => 'optionId' in v && v.field?.id === field.id,
-		) as { optionId: string } | undefined;
-
-		const card: BoardCard = {
-			itemId: item.id,
-			title: item.content?.title ?? '(untitled)',
-			number: item.content?.number,
-			url: item.content?.url,
-			state: item.content?.state,
-			assignees: item.content?.assignees?.nodes.map((a) => a.login) ?? [],
-			labels: item.content?.labels?.nodes.map((l) => ({ name: l.name, color: l.color })) ?? [],
-			optionId: value?.optionId,
-			isDraft: item.content?.__typename === 'DraftIssue',
-		};
-
-		const column = value ? byOption.get(value.optionId) : undefined;
-		if (column) {
-			column.cards.push(card);
-		} else {
-			unassigned.push(card);
-		}
-	}
-
-	return {
-		projectId,
-		title: project.title,
-		fieldId: field.id,
-		fieldName: field.name,
-		columns,
-		unassigned,
-		groupableFields: selectable.map((f) => ({ id: f.id, name: f.name })),
-	};
-}
 
 /** Moving a card between columns. */
 export async function moveCard(

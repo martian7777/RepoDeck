@@ -50,40 +50,81 @@ button:disabled {
 	line-height: 1.5;
 }
 
-/* ---- Board ---- */
+/* ---- Project shell (Table / Board / Roadmap all live in here) ---- */
 
-.board {
+.project {
 	display: flex;
 	flex-direction: column;
 	height: 100vh;
 }
-.board header {
+.project > header {
+	flex: 0 0 auto;
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.project h1 {
+	font-size: 1.15em;
+	margin: 0;
+}
+.project .warn {
+	margin: 4px 0 0;
+	font-size: 0.85em;
+	color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground));
+}
+
+/* The toolbar wraps rather than overflowing when the panel is narrow. */
+.project .bar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 16px;
-	padding: 12px 16px;
-	border-bottom: 1px solid var(--vscode-panel-border);
-	flex: 0 0 auto;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin-top: 10px;
 }
-.board h1 {
-	font-size: 1.1em;
-	margin: 0;
-}
-.board .actions {
+.project .actions {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+.layouts {
+	display: flex;
+	gap: 2px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 6px;
+	padding: 2px;
+}
+.layouts button {
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	border-radius: 4px;
+	padding: 3px 10px;
+	white-space: nowrap;
+}
+.layouts button.on {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+.groupby {
+	margin: 12px 16px 0;
+	font-size: 0.9em;
+	color: var(--vscode-descriptionForeground);
 }
 
-/* The board scrolls horizontally inside itself; the page body never does. */
+/* Every wide layout scrolls inside this, so the page body never scrolls sideways. */
+.scroller {
+	overflow-x: auto;
+	overflow-y: auto;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
 .columns {
 	display: flex;
 	gap: 12px;
 	padding: 16px;
-	overflow-x: auto;
 	align-items: flex-start;
-	flex: 1 1 auto;
 }
 
 .column {
@@ -156,7 +197,7 @@ button:disabled {
 	background: transparent;
 }
 
-.board header select {
+.groupby select {
 	font-family: inherit;
 	font-size: inherit;
 	color: var(--vscode-dropdown-foreground);
@@ -164,10 +205,6 @@ button:disabled {
 	border: 1px solid var(--vscode-dropdown-border, transparent);
 	border-radius: 2px;
 	padding: 1px 4px;
-}
-.board header p {
-	margin: 4px 0 0;
-	font-size: 0.9em;
 }
 .state .actions {
 	display: flex;
@@ -787,4 +824,321 @@ aside .chip {
 	border-radius: 10px;
 	padding: 0 6px;
 	color: var(--vscode-foreground);
+}
+
+/* ---- Table ---- */
+
+.table {
+	border-collapse: collapse;
+	width: 100%;
+	font-size: 0.95em;
+}
+.table th,
+.table td {
+	border-bottom: 1px solid var(--vscode-panel-border);
+	border-right: 1px solid var(--vscode-panel-border);
+	padding: 4px 8px;
+	text-align: left;
+	vertical-align: middle;
+	white-space: nowrap;
+}
+.table th {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-descriptionForeground);
+	font-weight: 600;
+	font-size: 0.9em;
+}
+.table tr:hover td {
+	background: var(--vscode-list-hoverBackground);
+}
+.table .rownum {
+	color: var(--vscode-descriptionForeground);
+	text-align: right;
+	width: 40px;
+}
+.table .col-title {
+	min-width: 280px;
+	max-width: 520px;
+	white-space: normal;
+}
+.table .row-tools {
+	width: 60px;
+}
+.table .row-tools button {
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	padding: 0 4px;
+}
+.table .row-tools button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.title-link {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	padding: 2px 0;
+	text-align: left;
+	width: 100%;
+}
+.title-link:hover {
+	background: transparent;
+}
+.title-link:hover .text {
+	text-decoration: underline;
+}
+.title-link .num {
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+}
+.state-dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	border: 2px solid var(--vscode-charts-green);
+	flex: 0 0 auto;
+}
+.state-dot.closed,
+.state-dot.merged {
+	border-color: var(--vscode-charts-purple);
+	background: var(--vscode-charts-purple);
+}
+
+/* Editors sit flush in the cell so the table reads as a grid, not a form. */
+.cell {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	padding: 2px 4px;
+	min-width: 90px;
+	max-width: 200px;
+}
+.cell:hover {
+	border-color: var(--vscode-panel-border);
+}
+.cell:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-input-background);
+}
+select.cell,
+.cell select {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	padding: 2px 4px;
+}
+.cell select:hover {
+	border-color: var(--vscode-panel-border);
+}
+.cell.select {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+	border: none;
+}
+.cell.select .dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex: 0 0 auto;
+}
+.assignees {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	background: transparent;
+	color: var(--vscode-foreground);
+	padding: 2px 4px;
+	border-radius: 3px;
+}
+.assignees:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+.add-row {
+	margin: 10px 16px;
+	background: transparent;
+	border: 1px dashed var(--vscode-panel-border);
+	color: var(--vscode-descriptionForeground);
+	width: calc(100% - 32px);
+	padding: 8px;
+	border-radius: 6px;
+}
+.add-row:hover {
+	border-color: var(--vscode-focusBorder);
+	color: var(--vscode-foreground);
+	background: transparent;
+}
+
+/* ---- Roadmap ---- */
+
+.roadmap {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+.roadmap-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	flex-wrap: wrap;
+	padding: 10px 16px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.roadmap-bar button.on {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+.pad {
+	padding: 24px 16px;
+}
+
+.gantt {
+	padding: 12px 16px;
+	min-width: min-content;
+}
+.axis {
+	display: flex;
+	height: 22px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	margin-bottom: 8px;
+}
+.tick {
+	flex: 0 0 auto;
+	font-size: 0.7em;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+	border-left: 1px solid transparent;
+	overflow: hidden;
+}
+.tick.month {
+	border-left-color: var(--vscode-panel-border);
+	font-weight: 700;
+	color: var(--vscode-foreground);
+}
+.tick.today {
+	color: var(--vscode-charts-red);
+	font-weight: 700;
+}
+
+.gantt-row {
+	display: flex;
+	align-items: center;
+	height: 34px;
+}
+.gantt-label {
+	flex: 0 0 240px;
+	width: 240px;
+	padding-right: 12px;
+	overflow: hidden;
+}
+.gantt-label .title-link .text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.gantt-track {
+	position: relative;
+	height: 100%;
+	flex: 0 0 auto;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.bar {
+	position: absolute;
+	top: 6px;
+	height: 20px;
+	background: var(--vscode-charts-blue);
+	color: var(--vscode-editor-background);
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	padding: 0 6px;
+	font-size: 0.8em;
+	overflow: hidden;
+	cursor: pointer;
+}
+.bar span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.bar:hover {
+	filter: brightness(1.15);
+}
+
+.undated {
+	border-top: 1px solid var(--vscode-panel-border);
+	max-height: 40%;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+.undated h2 {
+	font-size: 0.85em;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--vscode-descriptionForeground);
+	margin: 0;
+	padding: 10px 16px;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 700px) {
+	.project > header {
+		padding: 10px 12px;
+	}
+	.project .bar {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.layouts {
+		justify-content: space-between;
+	}
+	.layouts button {
+		flex: 1 1 0;
+		text-align: center;
+	}
+	.columns {
+		padding: 12px;
+	}
+	.column {
+		flex-basis: 240px;
+	}
+	.table .col-title {
+		min-width: 200px;
+	}
+	.gantt-label {
+		flex-basis: 150px;
+		width: 150px;
+	}
+}
+
+/* Narrow enough that a horizontal board is unusable: stack the columns instead. */
+@media (max-width: 480px) {
+	.columns {
+		flex-direction: column;
+		overflow-x: hidden;
+	}
+	.column,
+	.add-column {
+		flex: 0 0 auto;
+		width: 100%;
+		max-height: none;
+	}
 }
