@@ -6,20 +6,24 @@ editors that can't run the official GitHub extension.
 Works in **VS Code** and in VS Code forks such as **Google Antigravity**, **Cursor**, and
 **Windsurf** (published to Open VSX as well as the VS Code Marketplace).
 
-## What's in v0.1
+## Features
 
 - **Initialize Repository** — takes an empty folder from nothing to a pushed GitHub repo:
   `git init`, creates the repo under your account or an org, sets `origin`, makes the first
   commit, and pushes.
 - **Issues** — a sidebar tree (Assigned to Me / Created by Me / All Open) and a real form
   for creating issues with a markdown body, assignees, and labels.
+- **Pull requests** — a sidebar tree (Waiting for My Review / Assigned / Created / All Open),
+  a create form that pushes your branch for you, and a detail view with the description,
+  CI checks, and the full conversation. Approve or request changes, check the PR out
+  locally, and merge by merge commit, squash, or rebase.
 - **Project board** — a drag-and-drop kanban over a GitHub Project. Drag a card to change
   its status; add any repo issue to the board from the sidebar.
 
 ## Roadmap
 
-- **v0.2** — pull requests: list, create, check out, review, and merge (merge / squash / rebase).
 - **v0.3** — board authoring: create projects, custom fields, draft items, iterations.
+- **Later** — inline review comments on the diff.
 
 ## Signing in
 

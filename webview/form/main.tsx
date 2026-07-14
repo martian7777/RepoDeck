@@ -9,15 +9,28 @@ interface Label {
 	color: string;
 }
 
+interface Init {
+	mode: 'issue' | 'pr';
+	repo: string;
+	collaborators: string[];
+	labels: Label[];
+	/** PR mode only. */
+	head?: string;
+	branches?: string[];
+	defaultBase?: string;
+	suggestedTitle?: string;
+}
+
 function App() {
-	const [repo, setRepo] = useState('');
-	const [collaborators, setCollaborators] = useState<string[]>([]);
-	const [labels, setLabels] = useState<Label[]>([]);
+	const [init, setInit] = useState<Init | undefined>();
 
 	const [title, setTitle] = useState('');
 	const [body, setBody] = useState('');
 	const [assignees, setAssignees] = useState<string[]>([]);
+	const [reviewers, setReviewers] = useState<string[]>([]);
 	const [chosenLabels, setChosenLabels] = useState<string[]>([]);
+	const [base, setBase] = useState('');
+	const [draft, setDraft] = useState(false);
 	const [error, setError] = useState<string | undefined>();
 	const [submitting, setSubmitting] = useState(false);
 
@@ -25,9 +38,11 @@ function App() {
 		const onMessage = (e: MessageEvent) => {
 			const msg = e.data;
 			if (msg.type === 'init') {
-				setRepo(msg.repo);
-				setCollaborators(msg.collaborators);
-				setLabels(msg.labels);
+				setInit(msg);
+				setBase(msg.defaultBase ?? '');
+				if (msg.suggestedTitle) {
+					setTitle(msg.suggestedTitle);
+				}
 			} else if (msg.type === 'error') {
 				setError(msg.message);
 				setSubmitting(false);
@@ -43,20 +58,51 @@ function App() {
 
 	const submit = (e: Event) => {
 		e.preventDefault();
-		if (!title.trim()) {
+		if (!title.trim() || !init) {
 			return;
 		}
 		setSubmitting(true);
 		setError(undefined);
-		vscode.postMessage({ type: 'submit', title, body, assignees, labels: chosenLabels });
+		vscode.postMessage(
+			init.mode === 'pr'
+				? { type: 'submit', title, body, base, draft, reviewers, assignees }
+				: { type: 'submit', title, body, assignees, labels: chosenLabels },
+		);
 	};
+
+	if (!init) {
+		return <div class="state">Loading…</div>;
+	}
+
+	const isPr = init.mode === 'pr';
 
 	return (
 		<form class="form" onSubmit={submit}>
-			<h1>New issue</h1>
-			<p class="muted">{repo}</p>
+			<h1>{isPr ? 'New pull request' : 'New issue'}</h1>
+			<p class="muted">
+				{init.repo}
+				{isPr && base && (
+					<>
+						{' · '}
+						<code>{init.head}</code> → <code>{base}</code>
+					</>
+				)}
+			</p>
 
 			{error && <p class="error">{error}</p>}
+
+			{isPr && (
+				<label>
+					Merge into
+					<select value={base} onChange={(e) => setBase((e.target as HTMLSelectElement).value)}>
+						{(init.branches ?? []).map((b) => (
+							<option key={b} value={b}>
+								{b}
+							</option>
+						))}
+					</select>
+				</label>
+			)}
 
 			<label>
 				Title
@@ -78,29 +124,29 @@ function App() {
 				/>
 			</label>
 
-			{collaborators.length > 0 && (
-				<fieldset>
-					<legend>Assignees</legend>
-					<div class="chips">
-						{collaborators.map((c) => (
-							<button
-								type="button"
-								key={c}
-								class={`chip${assignees.includes(c) ? ' on' : ''}`}
-								onClick={() => toggle(assignees, setAssignees, c)}
-							>
-								{c}
-							</button>
-						))}
-					</div>
-				</fieldset>
+			{isPr && init.collaborators.length > 0 && (
+				<Chips
+					legend="Reviewers"
+					options={init.collaborators}
+					chosen={reviewers}
+					onToggle={(v) => toggle(reviewers, setReviewers, v)}
+				/>
 			)}
 
-			{labels.length > 0 && (
+			{init.collaborators.length > 0 && (
+				<Chips
+					legend="Assignees"
+					options={init.collaborators}
+					chosen={assignees}
+					onToggle={(v) => toggle(assignees, setAssignees, v)}
+				/>
+			)}
+
+			{!isPr && init.labels.length > 0 && (
 				<fieldset>
 					<legend>Labels</legend>
 					<div class="chips">
-						{labels.map((l) => (
+						{init.labels.map((l) => (
 							<button
 								type="button"
 								key={l.name}
@@ -115,15 +161,51 @@ function App() {
 				</fieldset>
 			)}
 
+			{isPr && (
+				<label class="check">
+					<input
+						type="checkbox"
+						checked={draft}
+						onChange={(e) => setDraft((e.target as HTMLInputElement).checked)}
+					/>
+					Open as a draft
+				</label>
+			)}
+
 			<div class="actions">
 				<button type="submit" class="primary" disabled={!title.trim() || submitting}>
-					{submitting ? 'Creating…' : 'Create issue'}
+					{submitting ? 'Creating…' : isPr ? 'Create pull request' : 'Create issue'}
 				</button>
 				<button type="button" onClick={() => vscode.postMessage({ type: 'cancel' })}>
 					Cancel
 				</button>
 			</div>
 		</form>
+	);
+}
+
+function Chips(props: {
+	legend: string;
+	options: string[];
+	chosen: string[];
+	onToggle: (value: string) => void;
+}) {
+	return (
+		<fieldset>
+			<legend>{props.legend}</legend>
+			<div class="chips">
+				{props.options.map((o) => (
+					<button
+						type="button"
+						key={o}
+						class={`chip${props.chosen.includes(o) ? ' on' : ''}`}
+						onClick={() => props.onToggle(o)}
+					>
+						{o}
+					</button>
+				))}
+			</div>
+		</fieldset>
 	);
 }
 

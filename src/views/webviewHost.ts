@@ -15,7 +15,7 @@ function nonce(): string {
 export function renderHtml(
 	webview: vscode.Webview,
 	extensionUri: vscode.Uri,
-	bundle: 'board' | 'form',
+	bundle: 'board' | 'form' | 'pr',
 	title: string,
 ): string {
 	const n = nonce();

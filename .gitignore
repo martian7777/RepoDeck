@@ -13,4 +13,5 @@ dist/
 # Built webview bundles; the sources live in webview/.
 media/board.js
 media/form.js
+media/pr.js
 media/*.map

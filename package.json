@@ -2,7 +2,7 @@
   "name": "repodeck",
   "displayName": "RepoDeck — GitHub Issues, PRs & Boards",
   "description": "Initialize repos, create and assign issues, and manage GitHub Project boards with a real kanban — without leaving your editor.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "martian7777",
   "license": "MIT",
   "engines": {
@@ -99,6 +99,40 @@
         "command": "repodeck.addIssueToBoard",
         "title": "Add Issue to Project Board",
         "category": "RepoDeck"
+      },
+      {
+        "command": "repodeck.createPr",
+        "title": "Create Pull Request",
+        "category": "RepoDeck",
+        "icon": "$(add)"
+      },
+      {
+        "command": "repodeck.refreshPulls",
+        "title": "Refresh Pull Requests",
+        "category": "RepoDeck",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "repodeck.openPr",
+        "title": "Open Pull Request",
+        "category": "RepoDeck"
+      },
+      {
+        "command": "repodeck.checkoutPr",
+        "title": "Check Out Pull Request",
+        "category": "RepoDeck",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "repodeck.mergePr",
+        "title": "Merge Pull Request",
+        "category": "RepoDeck",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "repodeck.closePr",
+        "title": "Close Pull Request",
+        "category": "RepoDeck"
       }
     ],
     "menus": {
@@ -117,6 +151,16 @@
           "command": "repodeck.refreshIssues",
           "when": "view == repodeck.issues",
           "group": "navigation@3"
+        },
+        {
+          "command": "repodeck.createPr",
+          "when": "view == repodeck.pulls && repodeck:hasRepo",
+          "group": "navigation@1"
+        },
+        {
+          "command": "repodeck.refreshPulls",
+          "when": "view == repodeck.pulls",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -124,6 +168,21 @@
           "command": "repodeck.addIssueToBoard",
           "when": "view == repodeck.issues && viewItem == issue",
           "group": "inline"
+        },
+        {
+          "command": "repodeck.checkoutPr",
+          "when": "view == repodeck.pulls && viewItem == pull",
+          "group": "inline@1"
+        },
+        {
+          "command": "repodeck.mergePr",
+          "when": "view == repodeck.pulls && viewItem == pull",
+          "group": "inline@2"
+        },
+        {
+          "command": "repodeck.closePr",
+          "when": "view == repodeck.pulls && viewItem == pull",
+          "group": "1_modify"
         }
       ]
     },

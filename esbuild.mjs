@@ -22,6 +22,7 @@ const webviewConfig = {
 	entryPoints: {
 		board: 'webview/board/main.tsx',
 		form: 'webview/form/main.tsx',
+		pr: 'webview/pr/main.tsx',
 	},
 	bundle: true,
 	outdir: 'media',
