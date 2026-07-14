@@ -1,4 +1,4 @@
-# <img src="media/icon.svg" align="center" width="40" height="40" /> RepoDeck
+# <img src="media/icon.png" align="center" width="40" height="40" /> RepoDeck
 
 > Initialize repositories, create/assign issues, and manage GitHub Project boards with a real interactive Kanban — without leaving your editor.
 
