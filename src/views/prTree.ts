@@ -18,6 +18,11 @@ class PullNode {
 	constructor(readonly pull: PullSummary) {}
 }
 
+/** See `toIssue` — view/item commands get the tree element, row clicks get the payload. */
+export function toPull(arg: PullSummary | { pull: PullSummary }): PullSummary {
+	return 'pull' in arg ? arg.pull : arg;
+}
+
 const CATEGORIES = [
 	new CategoryNode(
 		'Waiting for My Review',

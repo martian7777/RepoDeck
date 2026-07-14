@@ -2,14 +2,20 @@ import * as vscode from 'vscode';
 import { getOctokit, onDidChangeAuthentication, signOut } from './auth/session';
 import { initRepo, describe } from './features/initRepo';
 import { checkoutPull, closePullRequest, mergePullRequest } from './features/pullRequests';
+import { createProjectCommand } from './features/createProject';
 import { addIssueToProject } from './github/graphql';
 import { refreshRepoContext } from './github/repoContext';
 import type { PullSummary } from './github/prs';
-import { openBoard, activeProjectId, refreshBoard } from './views/boardPanel';
+import { openBoard, activeProjectId, refreshBoard, setActiveProject } from './views/boardPanel';
 import { openIssueForm, openPullForm } from './views/formPanel';
-import { IssuesTreeProvider, type IssueItem } from './views/issuesTree';
-import { PullsTreeProvider } from './views/prTree';
+import { IssuesTreeProvider, toIssue, type IssueItem } from './views/issuesTree';
+import { openIssuePanel } from './views/issuePanel';
+import { PullsTreeProvider, toPull } from './views/prTree';
 import { openPullPanel } from './views/prPanel';
+
+/** A view/item command is invoked with the tree element; a row click with the payload. */
+type IssueArg = IssueItem | { issue: IssueItem };
+type PullArg = PullSummary | { pull: PullSummary };
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	const issues = new IssuesTreeProvider(context);
@@ -50,13 +56,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			issues.refresh();
 		}),
 
-		vscode.commands.registerCommand('repodeck.openIssue', (issue: IssueItem) =>
-			vscode.env.openExternal(vscode.Uri.parse(issue.url)),
+		vscode.commands.registerCommand('repodeck.openIssue', (arg: IssueArg) =>
+			openIssuePanel(context, toIssue(arg).number, () => issues.refresh()),
 		),
 
-		vscode.commands.registerCommand('repodeck.addIssueToBoard', async (issue: IssueItem) => {
+		vscode.commands.registerCommand('repodeck.openIssueOnGitHub', (arg: IssueArg) =>
+			vscode.env.openExternal(vscode.Uri.parse(toIssue(arg).url)),
+		),
+
+		vscode.commands.registerCommand('repodeck.addIssueToBoard', async (arg: IssueArg) => {
+			const issue = toIssue(arg);
 			const octokit = await getOctokit(context);
 			if (!octokit) {
+				return;
+			}
+			if (!issue?.nodeId) {
+				// GraphQL reports this as "Variable $contentId ... invalid value", which
+				// says nothing about what actually went wrong.
+				vscode.window.showErrorMessage('RepoDeck: that issue has no GitHub node id. Refresh the Issues view.');
 				return;
 			}
 
@@ -91,22 +108,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			pulls.refresh();
 		}),
 
-		vscode.commands.registerCommand('repodeck.openPr', (pull: PullSummary) =>
-			openPullPanel(context, pull.number, () => pulls.refresh()),
+		vscode.commands.registerCommand('repodeck.openPr', (arg: PullArg) =>
+			openPullPanel(context, toPull(arg).number, () => pulls.refresh()),
 		),
 
-		vscode.commands.registerCommand('repodeck.checkoutPr', (pull: PullSummary) =>
-			checkoutPull(context, pull.number),
+		vscode.commands.registerCommand('repodeck.checkoutPr', (arg: PullArg) =>
+			checkoutPull(context, toPull(arg).number),
 		),
 
-		vscode.commands.registerCommand('repodeck.mergePr', async (pull: PullSummary) => {
-			if (await mergePullRequest(context, pull.number)) {
+		vscode.commands.registerCommand('repodeck.mergePr', async (arg: PullArg) => {
+			if (await mergePullRequest(context, toPull(arg).number)) {
 				pulls.refresh();
 			}
 		}),
 
-		vscode.commands.registerCommand('repodeck.closePr', async (pull: PullSummary) => {
-			if (await closePullRequest(context, pull.number, 'closed')) {
+		vscode.commands.registerCommand('repodeck.closePr', async (arg: PullArg) => {
+			if (await closePullRequest(context, toPull(arg).number, 'closed')) {
 				pulls.refresh();
 			}
 		}),
@@ -114,6 +131,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// ---- Board ----
 
 		vscode.commands.registerCommand('repodeck.openBoard', () => openBoard(context)),
+
+		vscode.commands.registerCommand('repodeck.createProject', async () => {
+			const id = await createProjectCommand(context);
+			if (id) {
+				setActiveProject(id);
+				await openBoard(context);
+			}
+		}),
 	);
 
 	// Seed `repodeck:hasRepo` so the welcome view is right on first paint, and try a

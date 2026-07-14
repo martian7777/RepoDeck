@@ -27,6 +27,15 @@ class IssueNode {
 	constructor(readonly issue: IssueItem) {}
 }
 
+/**
+ * VS Code hands the *tree element* to view/item commands, but the element passed to a
+ * TreeItem's `command.arguments`. So a command can be invoked with either shape depending
+ * on whether the user clicked the row or its inline button — normalise both here.
+ */
+export function toIssue(arg: IssueItem | { issue: IssueItem }): IssueItem {
+	return 'issue' in arg ? arg.issue : arg;
+}
+
 const CATEGORIES = [
 	new CategoryNode(
 		'Assigned to Me',

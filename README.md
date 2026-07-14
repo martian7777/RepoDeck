@@ -17,13 +17,24 @@ Works in **VS Code** and in VS Code forks such as **Google Antigravity**, **Curs
   a create form that pushes your branch for you, and a detail view with the description,
   CI checks, and the full conversation. Approve or request changes, check the PR out
   locally, and merge by merge commit, squash, or rebase.
-- **Project board** — a drag-and-drop kanban over a GitHub Project. Drag a card to change
-  its status; add any repo issue to the board from the sidebar.
+- **Project boards** — create a project, link it to the repo, and work it as a
+  drag-and-drop kanban. Add, rename, recolour, and delete columns. Add draft items and
+  promote them into real issues. Create custom fields (text, number, date, single-select),
+  and group the board by any single-select field you like.
 
 ## Roadmap
 
-- **v0.3** — board authoring: create projects, custom fields, draft items, iterations.
 - **Later** — inline review comments on the diff.
+
+## Two things GitHub's API won't let anyone do
+
+**Iteration fields cannot be created or edited through the API** — only on github.com.
+RepoDeck will say so rather than failing quietly. Existing iteration fields still work.
+
+**Deleting a column deletes a value, not a container.** A board column is one option of a
+single-select field, so removing it strips that value from every card that held it; the
+cards stay on the board and fall into the "No Status" tray. RepoDeck tells you how many
+cards that affects before you confirm.
 
 ## Signing in
 

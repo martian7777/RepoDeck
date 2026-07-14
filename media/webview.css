@@ -106,8 +106,73 @@ button:disabled {
 	letter-spacing: 0.04em;
 	margin: 0 0 10px;
 	display: flex;
-	justify-content: space-between;
+	align-items: center;
+	gap: 6px;
 	color: var(--vscode-descriptionForeground);
+}
+.column h2 .name {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Column and card tools stay out of the way until the row is hovered — a board covered
+   in ✕ buttons reads as dangerous. */
+.tools {
+	display: flex;
+	gap: 2px;
+	opacity: 0;
+	transition: opacity 80ms;
+}
+.column h2:hover .tools,
+.card:hover .tools {
+	opacity: 1;
+}
+.tools button {
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	padding: 0 4px;
+	line-height: 1.4;
+	border-radius: 3px;
+}
+.tools button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.add-column {
+	flex: 0 0 200px;
+	align-self: stretch;
+	max-height: 120px;
+	background: transparent;
+	border: 1px dashed var(--vscode-panel-border);
+	color: var(--vscode-descriptionForeground);
+	border-radius: 6px;
+}
+.add-column:hover {
+	border-color: var(--vscode-focusBorder);
+	color: var(--vscode-foreground);
+	background: transparent;
+}
+
+.board header select {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-dropdown-foreground);
+	background: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border-radius: 2px;
+	padding: 1px 4px;
+}
+.board header p {
+	margin: 4px 0 0;
+	font-size: 0.9em;
+}
+.state .actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 12px;
 }
 .column .count {
 	background: var(--vscode-badge-background);
@@ -148,6 +213,9 @@ button:disabled {
 	align-items: center;
 	font-size: 0.85em;
 	color: var(--vscode-descriptionForeground);
+}
+.card footer .tools {
+	margin-left: auto;
 }
 .card .who {
 	background: var(--vscode-badge-background);
@@ -416,4 +484,307 @@ button:disabled {
 .compose .actions.merge {
 	border-top: 1px solid var(--vscode-panel-border);
 	padding-top: 10px;
+}
+
+/* ---- Issue ---- */
+
+.issue {
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 24px 16px 64px;
+}
+.issue > header {
+	border-bottom: 1px solid var(--vscode-panel-border);
+	padding-bottom: 14px;
+	margin-bottom: 18px;
+}
+.issue h1 {
+	font-size: 1.7em;
+	font-weight: 400;
+	margin: 0 0 8px;
+	line-height: 1.25;
+}
+.issue .num {
+	color: var(--vscode-descriptionForeground);
+}
+.issue .meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 10px;
+	color: var(--vscode-descriptionForeground);
+}
+.issue .actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+/* Sidebar drops below the conversation on a narrow panel rather than being squeezed. */
+.layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 260px;
+	gap: 28px;
+	align-items: start;
+}
+@media (max-width: 780px) {
+	.layout {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+.comment {
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 6px;
+	padding: 12px 14px;
+	margin-bottom: 12px;
+}
+.comment > header {
+	margin-bottom: 8px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.comment pre {
+	font-family: var(--vscode-editor-font-family);
+	white-space: pre-wrap;
+	word-break: break-word;
+	margin: 0;
+	line-height: 1.55;
+}
+.comment p {
+	margin: 0;
+}
+
+aside .side {
+	border-bottom: 1px solid var(--vscode-panel-border);
+	padding-bottom: 14px;
+	margin-bottom: 14px;
+}
+aside h2 {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 0.85em;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 8px;
+}
+aside p {
+	margin: 0;
+}
+aside .gear,
+aside .remove,
+aside .link {
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	padding: 0 4px;
+	border-radius: 3px;
+}
+aside .gear:hover,
+aside .remove:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+aside .link {
+	color: var(--vscode-textLink-foreground);
+	padding: 0;
+	text-align: left;
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+aside .link:hover {
+	background: transparent;
+	text-decoration: underline;
+}
+aside .chip {
+	cursor: default;
+	padding: 2px 8px;
+	font-size: 0.9em;
+}
+
+.project {
+	margin-bottom: 10px;
+}
+.project-head {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.project .status {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-top: 4px;
+	font-size: 0.9em;
+}
+.project select {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-dropdown-foreground);
+	background: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border-radius: 2px;
+	padding: 2px 4px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.issue code {
+	font-family: var(--vscode-editor-font-family);
+	background: var(--vscode-textCodeBlock-background);
+	border-radius: 3px;
+	padding: 1px 4px;
+}
+
+/* A single vertical rail runs behind every row, so comments and events thread together
+   the way they do on GitHub. */
+.timeline {
+	position: relative;
+	margin-bottom: 28px;
+}
+.timeline::before {
+	content: '';
+	position: absolute;
+	left: 15px;
+	top: 8px;
+	bottom: 8px;
+	width: 2px;
+	background: var(--vscode-panel-border);
+}
+.tl-row {
+	position: relative;
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	margin-bottom: 14px;
+}
+.tl-row .comment {
+	flex: 1 1 auto;
+	min-width: 0;
+	margin: 0;
+}
+.tl-row.event {
+	align-items: center;
+	margin-bottom: 12px;
+}
+.tl-row.event p {
+	margin: 0;
+	font-size: 0.92em;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Avatars and event glyphs both sit on the rail, so they share its width. */
+.avatar,
+.tl-row.event .glyph {
+	flex: 0 0 auto;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 0.9em;
+	font-weight: 600;
+	z-index: 1;
+	box-shadow: 0 0 0 4px var(--vscode-editor-background);
+}
+.tl-row.event .glyph {
+	width: 26px;
+	height: 26px;
+	margin-left: 3px;
+	font-weight: 400;
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-descriptionForeground);
+	border: 1px solid var(--vscode-panel-border);
+}
+
+.when {
+	margin-left: auto;
+	font-size: 0.9em;
+	white-space: nowrap;
+}
+.comment > header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	background: var(--vscode-editorWidget-background);
+	margin: -12px -14px 10px;
+	padding: 8px 14px;
+	border-radius: 6px 6px 0 0;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.issue .repo {
+	font-family: var(--vscode-editor-font-family);
+	background: var(--vscode-textCodeBlock-background);
+	border-radius: 10px;
+	padding: 1px 8px;
+	font-size: 0.9em;
+}
+.compose h2 {
+	font-size: 1.05em;
+	text-transform: none;
+	letter-spacing: 0;
+	color: var(--vscode-foreground);
+	margin: 0 0 8px;
+}
+.actions.right {
+	justify-content: flex-end;
+}
+.project .status .value {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.project .dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex: 0 0 auto;
+}
+.project .status {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-top: 6px;
+	font-size: 0.9em;
+}
+
+/* Column colour dot + description, matching a GitHub board. */
+.column h2 .dot {
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	flex: 0 0 auto;
+}
+.col-desc {
+	margin: -4px 0 10px;
+	font-size: 0.85em;
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+.card .labels {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-bottom: 6px;
+}
+.card .label {
+	font-size: 0.78em;
+	border: 1px solid;
+	border-radius: 10px;
+	padding: 0 6px;
+	color: var(--vscode-foreground);
 }
