@@ -8,6 +8,14 @@
 
 **RepoDeck** is a lightweight, high-performance GitHub client built directly into VS Code. It is designed to run anywhere, especially on independent editor forks (such as **Google Antigravity**, **Cursor**, **Windsurf**, and **VSCodium**) where the official GitHub extension has limited functionality, licensing restrictions, or authentication hurdles.
 
+## 🚀 Installation
+
+You can install **RepoDeck** directly from the extension marketplaces:
+* **VS Code Marketplace**: [martian7777.repodeck](https://marketplace.visualstudio.com/items?itemName=martian7777.repodeck)
+* **Open VSX Registry**: [martian7777/repodeck](https://open-vsx.org/extension/martian7777/repodeck)
+
+Alternatively, search for `RepoDeck` in your editor's Extension view (`Ctrl+Shift+X` or `Cmd+Shift+X`) and click **Install**.
+
 ---
 
 ## 🔍 The Problem & The Solution
