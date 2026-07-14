@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vsce package --out repodeck.vsix
+
+      # Both registries get the exact same artifact, so an install from
+      # Antigravity (Open VSX) and one from VS Code are byte-identical.
+      - name: Publish to VS Code Marketplace
+        run: npx vsce publish --packagePath repodeck.vsix -p "$VSCE_PAT"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX
+        run: npx ovsx publish repodeck.vsix -p "$OVSX_TOKEN"
+        env:
+          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: repodeck.vsix

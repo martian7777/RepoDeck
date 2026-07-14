@@ -1,5 +1,5 @@
 import { render } from 'preact';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 declare function acquireVsCodeApi(): { postMessage(msg: unknown): void };
 const vscode = acquireVsCodeApi();
@@ -66,6 +66,20 @@ const colorOf = (c: string) => COLOR[c] ?? COLOR.GRAY;
 const BUILT_IN = ['Title', 'Assignees', 'Labels', 'Linked pull requests', 'Repository', 'Milestone', 'Reviewers'];
 const isCustom = (f: Field) => !BUILT_IN.includes(f.name) && f.type !== 'OTHER';
 
+/** Filters over data already in the webview — matching costs nothing and hits no network. */
+function matches(item: Item, query: string): boolean {
+	const q = query.trim().toLowerCase();
+	if (!q) {
+		return true;
+	}
+	return (
+		item.title.toLowerCase().includes(q) ||
+		`#${item.number}`.includes(q) ||
+		item.assignees.some((a) => a.toLowerCase().includes(q)) ||
+		item.labels.some((l) => l.name.toLowerCase().includes(q))
+	);
+}
+
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
@@ -78,6 +92,7 @@ function App() {
 	const [error, setError] = useState<string | undefined>();
 	const [stale, setStale] = useState<string | undefined>();
 	const [loading, setLoading] = useState(true);
+	const [filter, setFilter] = useState('');
 	/** Once the user has chosen a layout here, a later refresh must not yank it back. */
 	const [touched, setTouched] = useState(false);
 
@@ -164,6 +179,11 @@ function App() {
 	const selectFields = project.fields.filter((f) => f.type === 'SINGLE_SELECT' && isCustom(f));
 	const groupField = selectFields.find((f) => f.id === groupById) ?? selectFields[0];
 
+	// Every layout renders the filtered project, so one box filters all three.
+	const shown: Project = filter.trim()
+		? { ...project, items: project.items.filter((i) => matches(i, filter)) }
+		: project;
+
 	return (
 		<div class="project">
 			<header>
@@ -188,6 +208,14 @@ function App() {
 						))}
 					</div>
 
+					<input
+						class="filter"
+						type="search"
+						value={filter}
+						placeholder="Filter by title, #number, assignee or label"
+						onInput={(e) => setFilter((e.target as HTMLInputElement).value)}
+					/>
+
 					{layout === 'board' && selectFields.length > 1 && groupField && (
 						<label class="groupby">
 							Group by
@@ -209,11 +237,16 @@ function App() {
 					<p class="warn">Showing the first 1000 items — this project has more.</p>
 				)}
 				{stale && <p class="warn">{stale}</p>}
+				{filter.trim() && (
+					<p class="muted small">
+						{shown.items.length} of {project.items.length} items
+					</p>
+				)}
 			</header>
 
-			{layout === 'board' && <BoardView project={project} field={groupField} write={write} />}
-			{layout === 'table' && <TableView project={project} write={write} />}
-			{layout === 'roadmap' && <RoadmapView project={project} roadmap={roadmap} write={write} />}
+			{layout === 'board' && <BoardView project={shown} field={groupField} write={write} />}
+			{layout === 'table' && <TableView project={shown} write={write} />}
+			{layout === 'roadmap' && <RoadmapView project={shown} roadmap={roadmap} write={write} />}
 		</div>
 	);
 }
@@ -338,27 +371,113 @@ function TitleLink({ item }: { item: Item }) {
 // Table
 // ---------------------------------------------------------------------------
 
+/** Row height must match the CSS, or the virtual window drifts from what's painted. */
+const ROW_H = 33;
+const OVERSCAN = 6;
+
+type Sort = { key: string; dir: 1 | -1 } | undefined;
+
 function TableView({ project, write }: { project: Project; write: Write }) {
 	const fields = project.fields.filter(isCustom);
+	const [sort, setSort] = useState<Sort>(undefined);
+	const [scrollTop, setScrollTop] = useState(0);
+	const [viewport, setViewport] = useState(800);
+	const ref = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const el = ref.current;
+		if (!el) {
+			return;
+		}
+		const measure = () => setViewport(el.clientHeight);
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, []);
+
+	const items = useMemo(() => {
+		if (!sort) {
+			return project.items;
+		}
+		const field = fields.find((f) => f.id === sort.key);
+
+		const rank = (item: Item): string | number => {
+			if (sort.key === 'title') {
+				return item.title.toLowerCase();
+			}
+			if (sort.key === 'assignees') {
+				return item.assignees.join(',').toLowerCase();
+			}
+			if (!field) {
+				return '';
+			}
+			const v = item.values[field.id] as any;
+			if (!v) {
+				// Unset always sorts last, whichever direction — an empty cell isn't "smallest".
+				return sort.dir === 1 ? '￿' : '';
+			}
+			if (field.type === 'SINGLE_SELECT') {
+				// Sort by the column's own order (Todo → Done), not alphabetically.
+				const i = field.options.findIndex((o) => o.id === v.optionId);
+				return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+			}
+			if (field.type === 'ITERATION') {
+				return field.iterations.find((it) => it.id === v.iterationId)?.startDate ?? '';
+			}
+			return v.number ?? v.date ?? v.text ?? '';
+		};
+
+		return [...project.items].sort((a, b) => {
+			const x = rank(a);
+			const y = rank(b);
+			return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
+		});
+	}, [project.items, sort, fields]);
+
+	const toggle = (key: string) =>
+		setSort((s) => (s?.key === key ? (s.dir === 1 ? { key, dir: -1 } : undefined) : { key, dir: 1 }));
+
+	const arrow = (key: string) => (sort?.key === key ? (sort.dir === 1 ? ' ▲' : ' ▼') : '');
+
+	// Only the rows in view are rendered; the rest is empty space held open by two spacer
+	// rows. A 1000-row project would otherwise put thousands of live editors in the DOM.
+	const first = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
+	const count = Math.ceil(viewport / ROW_H) + OVERSCAN * 2;
+	const visible = items.slice(first, first + count);
+	const padTop = first * ROW_H;
+	const padBottom = Math.max(0, (items.length - first - visible.length) * ROW_H);
 
 	return (
-		<div class="scroller">
+		<div class="scroller" ref={ref} onScroll={(e) => setScrollTop((e.target as HTMLElement).scrollTop)}>
 			<table class="table">
 				<thead>
 					<tr>
 						<th class="rownum" />
-						<th class="col-title">Title</th>
-						<th>Assignees</th>
+						<th class="col-title sortable" onClick={() => toggle('title')}>
+							Title{arrow('title')}
+						</th>
+						<th class="sortable" onClick={() => toggle('assignees')}>
+							Assignees{arrow('assignees')}
+						</th>
 						{fields.map((f) => (
-							<th key={f.id}>{f.name}</th>
+							<th key={f.id} class="sortable" onClick={() => toggle(f.id)}>
+								{f.name}
+								{arrow(f.id)}
+							</th>
 						))}
 						<th />
 					</tr>
 				</thead>
 				<tbody>
-					{project.items.map((item, i) => (
+					{padTop > 0 && (
+						<tr class="spacer" style={{ height: `${padTop}px` }}>
+							<td colSpan={fields.length + 4} />
+						</tr>
+					)}
+					{visible.map((item, i) => (
 						<tr key={item.itemId}>
-							<td class="rownum">{i + 1}</td>
+							<td class="rownum">{first + i + 1}</td>
 							<td class="col-title">
 								<TitleLink item={item} />
 							</td>
@@ -420,8 +539,15 @@ function TableView({ project, write }: { project: Project; write: Write }) {
 							</td>
 						</tr>
 					))}
+					{padBottom > 0 && (
+						<tr class="spacer" style={{ height: `${padBottom}px` }}>
+							<td colSpan={fields.length + 4} />
+						</tr>
+					)}
 				</tbody>
 			</table>
+
+			{items.length === 0 && <p class="muted pad">Nothing matches.</p>}
 
 			<button class="add-row" onClick={() => vscode.postMessage({ type: 'addItem' })}>
 				+ Add item

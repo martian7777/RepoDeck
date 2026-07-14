@@ -1,5 +1,6 @@
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import { Markdown } from '../shared/markdown';
 
 declare function acquireVsCodeApi(): { postMessage(msg: unknown): void };
 const vscode = acquireVsCodeApi();
@@ -147,7 +148,7 @@ function App() {
 			{pr.body && (
 				<section class="body">
 					<h2>Description</h2>
-					<pre>{pr.body}</pre>
+					<Markdown text={pr.body} />
 				</section>
 			)}
 
@@ -164,7 +165,7 @@ function App() {
 								</span>
 							)}
 						</header>
-						{c.body && <pre>{c.body}</pre>}
+						{c.body && <Markdown text={c.body} />}
 					</article>
 				))}
 			</section>
@@ -202,6 +203,11 @@ function App() {
 
 					<div class="actions merge">
 						<button onClick={() => send({ type: 'checkout' })}>Check out</button>
+						{pr.draft && (
+							<button class="primary" onClick={() => send({ type: 'readyForReview' })}>
+								Ready for review
+							</button>
+						)}
 						<button
 							class="primary"
 							disabled={pr.draft || pr.mergeable === false}

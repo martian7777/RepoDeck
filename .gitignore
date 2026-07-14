@@ -3,10 +3,6 @@
 .claude
 
 node_modules/
-.github/
-.claude/
-.vscode/
-.v
 dist/
 *.vsix
 

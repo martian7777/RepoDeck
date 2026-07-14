@@ -1,7 +1,13 @@
 import * as vscode from 'vscode';
 import { getOctokit } from '../auth/session';
 import { git, readRepoState } from '../github/repoContext';
-import { fetchPull, mergePull, setPullState, type MergeMethod } from '../github/prs';
+import {
+	fetchPull,
+	markReadyForReview,
+	mergePull,
+	setPullState,
+	type MergeMethod,
+} from '../github/prs';
 import { describe } from './initRepo';
 
 /**
@@ -160,6 +166,102 @@ export async function mergePullRequest(
 	}
 
 	return true;
+}
+
+/**
+ * Creates and checks out a branch for an issue, from the repo's default branch.
+ *
+ * Branching from wherever HEAD happens to be is how you end up with an unrelated feature's
+ * commits in your PR, so this always starts from the default branch.
+ */
+export async function startWorkOnIssue(
+	context: vscode.ExtensionContext,
+	issue: { number: number; title: string },
+): Promise<void> {
+	const [state, octokit] = await Promise.all([readRepoState(), getOctokit(context)]);
+	if (!state.ref || !state.root || !octokit) {
+		return;
+	}
+	const { root, ref } = state;
+
+	const slug = issue.title
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.slice(0, 40)
+		.replace(/-+$/, '');
+	const suggested = `${issue.number}-${slug}`;
+
+	const branch = await vscode.window.showInputBox({
+		title: `Start working on #${issue.number}`,
+		prompt: 'Branch name',
+		value: suggested,
+		ignoreFocusOut: true,
+		validateInput: (v) => (/^[A-Za-z0-9._/-]+$/.test(v) ? undefined : 'Invalid branch name.'),
+	});
+	if (!branch) {
+		return;
+	}
+
+	const dirty = await git(root, 'status', '--porcelain');
+	if (dirty) {
+		const PROCEED = 'Create branch anyway';
+		const choice = await vscode.window.showWarningMessage(
+			'You have uncommitted changes. They will come with you onto the new branch.',
+			{ modal: true },
+			PROCEED,
+		);
+		if (choice !== PROCEED) {
+			return;
+		}
+	}
+
+	try {
+		const { data: repo } = await octokit.rest.repos.get({ owner: ref.owner, repo: ref.repo });
+		const base = repo.default_branch;
+
+		await git(root, 'fetch', 'origin', base);
+		const created = await git(root, 'checkout', '-b', branch, `origin/${base}`);
+		if (created === undefined) {
+			// Almost always "branch already exists" — switching to it is what was meant.
+			const switched = await git(root, 'checkout', branch);
+			if (switched === undefined) {
+				throw new Error(`Couldn't create or switch to ${branch}.`);
+			}
+			vscode.window.showInformationMessage(`RepoDeck: switched to the existing branch ${branch}.`);
+			return;
+		}
+
+		vscode.window.showInformationMessage(`RepoDeck: on ${branch}, branched from ${base}.`);
+	} catch (err) {
+		vscode.window.showErrorMessage(`RepoDeck: ${describe(err)}`);
+	}
+}
+
+/** Turns a draft PR into a real one, so reviewers get asked. */
+export async function readyForReview(
+	context: vscode.ExtensionContext,
+	number: number,
+): Promise<boolean> {
+	const [state, octokit] = await Promise.all([readRepoState(), getOctokit(context)]);
+	if (!state.ref || !octokit) {
+		return false;
+	}
+	try {
+		const pr = await fetchPull(octokit, state.ref, number);
+		if (!pr.draft) {
+			vscode.window.showInformationMessage(`RepoDeck: #${number} is not a draft.`);
+			return false;
+		}
+		// markPullRequestReadyForReview is GraphQL-only and needs the PR's node id.
+		const { data } = await octokit.rest.pulls.get({ ...state.ref, pull_number: number });
+		await markReadyForReview(octokit, data.node_id);
+		vscode.window.showInformationMessage(`RepoDeck: #${number} is ready for review.`);
+		return true;
+	} catch (err) {
+		vscode.window.showErrorMessage(`RepoDeck: ${describe(err)}`);
+		return false;
+	}
 }
 
 export async function closePullRequest(

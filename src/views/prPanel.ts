@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import { getLogin, getOctokit } from '../auth/session';
 import { describe } from '../features/initRepo';
-import { checkoutPull, closePullRequest, mergePullRequest } from '../features/pullRequests';
+import {
+	checkoutPull,
+	closePullRequest,
+	mergePullRequest,
+	readyForReview,
+} from '../features/pullRequests';
 import { readRepoState } from '../github/repoContext';
 import { commentOnPull, fetchPull, reviewPull, type PullDetail, type ReviewEvent } from '../github/prs';
 import { renderHtml } from './webviewHost';
@@ -112,6 +117,14 @@ export async function openPullPanel(
 
 				case 'checkout':
 					await checkoutPull(context, number);
+					return;
+
+				case 'readyForReview':
+					if (await readyForReview(context, number)) {
+						cache.delete(number);
+						await push();
+						onChanged();
+					}
 					return;
 
 				case 'setState':

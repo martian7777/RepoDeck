@@ -1,5 +1,6 @@
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import { Markdown } from '../shared/markdown';
 
 declare function acquireVsCodeApi(): { postMessage(msg: unknown): void };
 const vscode = acquireVsCodeApi();
@@ -142,7 +143,7 @@ function App() {
 									<strong>{issue.author}</strong> <span class="muted">opened this issue</span>
 								</header>
 								{issue.body ? (
-									<pre>{issue.body}</pre>
+									<Markdown text={issue.body} />
 								) : (
 									<p class="muted">No description provided.</p>
 								)}
@@ -158,7 +159,7 @@ function App() {
 											<strong>{entry.actor}</strong> <span class="muted">commented</span>
 											<span class="muted when">{when(entry.createdAt)}</span>
 										</header>
-										<pre>{entry.body}</pre>
+										<Markdown text={entry.body ?? ""} />
 									</article>
 								</div>
 							) : (

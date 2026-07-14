@@ -1,5 +1,17 @@
 import * as vscode from 'vscode';
-import { Octokit } from '@octokit/rest';
+import { Octokit as Base } from '@octokit/rest';
+import { retry } from '@octokit/plugin-retry';
+import { throttling } from '@octokit/plugin-throttling';
+
+/**
+ * Rate limits are a normal operating condition, not an error.
+ *
+ * GitHub answers a burst with 403s and a `retry-after`. Without these plugins that surfaces
+ * as a panel that simply failed to load. With them, the request waits and retries, so a
+ * user hammering Refresh sees it get slower rather than break.
+ */
+const Octokit = Base.plugin(retry, throttling);
+export type Client = InstanceType<typeof Octokit>;
 
 /**
  * `project` is not implied by `repo`. Projects v2 is unreachable without it, and the
@@ -10,7 +22,7 @@ export const SCOPES = ['repo', 'read:org', 'project'];
 
 const PAT_KEY = 'repodeck.pat';
 
-let octokit: Octokit | undefined;
+let octokit: Client | undefined;
 let currentLogin: string | undefined;
 
 const onDidChangeAuth = new vscode.EventEmitter<void>();
@@ -95,7 +107,7 @@ async function promptForPat(context: vscode.ExtensionContext): Promise<string | 
 export async function getOctokit(
 	context: vscode.ExtensionContext,
 	interactive = true,
-): Promise<Octokit | undefined> {
+): Promise<Client | undefined> {
 	if (octokit) {
 		return octokit;
 	}
@@ -105,7 +117,27 @@ export async function getOctokit(
 		return undefined;
 	}
 
-	const client = new Octokit({ auth: token, userAgent: 'RepoDeck' });
+	const client = new Octokit({
+		auth: token,
+		userAgent: 'RepoDeck',
+		throttle: {
+			onRateLimit: (retryAfter, options, _o, retryCount) => {
+				// Retry twice, then give up rather than hanging on a limit that isn't clearing.
+				if (retryCount < 2) {
+					console.warn(`RepoDeck: rate limited on ${options.method} ${options.url}; retrying in ${retryAfter}s`);
+					return true;
+				}
+				return false;
+			},
+			onSecondaryRateLimit: (retryAfter, options, _o, retryCount) => {
+				if (retryCount < 2) {
+					console.warn(`RepoDeck: secondary rate limit on ${options.method} ${options.url}; retrying in ${retryAfter}s`);
+					return true;
+				}
+				return false;
+			},
+		},
+	});
 
 	try {
 		const { data } = await client.rest.users.getAuthenticated();

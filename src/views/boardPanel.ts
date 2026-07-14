@@ -30,8 +30,19 @@ let projectId: string | undefined;
  * Last-known project, per id. Reopening the panel paints from this immediately and the
  * real fetch lands behind it — a project with 1000 items is several sequential GraphQL
  * pages, and waiting on that with a blank panel is what made this feel broken.
+ *
+ * Backed by workspaceState so it survives a window reload, which is exactly when the wait
+ * would otherwise be longest.
  */
-const cache = new Map<string, Project>();
+const KEY = 'repodeck.project.';
+
+function cached(context: vscode.ExtensionContext, id: string): Project | undefined {
+	return context.workspaceState.get<Project>(KEY + id);
+}
+
+function store(context: vscode.ExtensionContext, id: string, project: Project): void {
+	void context.workspaceState.update(KEY + id, project);
+}
 
 const config = () => vscode.workspace.getConfiguration('repodeck');
 const setConfig = (key: string, value: string) =>
@@ -151,18 +162,18 @@ async function push(context: vscode.ExtensionContext): Promise<void> {
 	const id = projectId;
 
 	// Paint what we had, if anything, so the panel is never blank while the network runs.
-	const cached = cache.get(id);
-	if (cached) {
-		post(cached);
+	const previous = cached(context, id);
+	if (previous) {
+		post(previous);
 	}
 
 	panel.webview.postMessage({ type: 'loading' });
 	try {
 		const project = await fetchProject(octokit, id);
-		cache.set(id, project);
+		store(context, id, project);
 		post(project);
 	} catch (err) {
-		if (cached) {
+		if (previous) {
 			// We're already showing something real; don't blow it away over a failed refresh.
 			panel.webview.postMessage({
 				type: 'stale',

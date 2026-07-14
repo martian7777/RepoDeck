@@ -2,7 +2,7 @@
   "name": "repodeck",
   "displayName": "RepoDeck — GitHub Issues, PRs & Boards",
   "description": "Initialize repos, create and assign issues, and manage GitHub Project boards with a real kanban — without leaving your editor.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "martian7777",
   "license": "MIT",
   "engines": {
@@ -22,6 +22,11 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/martian7777/repodeck.git"
+  },
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#0d1117",
+    "theme": "dark"
   },
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -145,6 +150,17 @@
         "title": "New Project Board",
         "category": "RepoDeck",
         "icon": "$(add)"
+      },
+      {
+        "command": "repodeck.readyForReview",
+        "title": "Mark Ready for Review",
+        "category": "RepoDeck"
+      },
+      {
+        "command": "repodeck.startWorkOnIssue",
+        "title": "Start Working on Issue",
+        "category": "RepoDeck",
+        "icon": "$(git-branch)"
       }
     ],
     "menus": {
@@ -182,9 +198,14 @@
           "group": "inline@1"
         },
         {
-          "command": "repodeck.openIssueOnGitHub",
+          "command": "repodeck.startWorkOnIssue",
           "when": "view == repodeck.issues && viewItem == issue",
           "group": "inline@2"
+        },
+        {
+          "command": "repodeck.openIssueOnGitHub",
+          "when": "view == repodeck.issues && viewItem == issue",
+          "group": "inline@3"
         },
         {
           "command": "repodeck.checkoutPr",
@@ -198,6 +219,11 @@
         },
         {
           "command": "repodeck.closePr",
+          "when": "view == repodeck.pulls && viewItem == pull",
+          "group": "1_modify"
+        },
+        {
+          "command": "repodeck.readyForReview",
           "when": "view == repodeck.pulls && viewItem == pull",
           "group": "1_modify"
         }
@@ -223,7 +249,11 @@
         },
         "repodeck.layout": {
           "type": "string",
-          "enum": ["table", "board", "roadmap"],
+          "enum": [
+            "table",
+            "board",
+            "roadmap"
+          ],
           "default": "board",
           "description": "Which layout the project panel opens in."
         },
@@ -248,7 +278,10 @@
     "vscode:prepublish": "node esbuild.mjs --production"
   },
   "dependencies": {
+    "@octokit/plugin-retry": "^7.2.1",
+    "@octokit/plugin-throttling": "^9.6.1",
     "@octokit/rest": "^21.0.2",
+    "marked": "^14.1.4",
     "preact": "^10.24.3"
   },
   "devDependencies": {

@@ -8,6 +8,9 @@ export interface PullSummary {
 	url: string;
 	author: string;
 	draft: boolean;
+	assignees: string[];
+	/** Logins with a review requested — how "Waiting for My Review" is decided. */
+	reviewers: string[];
 }
 
 export interface PullComment {

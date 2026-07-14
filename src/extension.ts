@@ -1,7 +1,13 @@
 import * as vscode from 'vscode';
 import { getOctokit, onDidChangeAuthentication, signOut } from './auth/session';
 import { initRepo, describe } from './features/initRepo';
-import { checkoutPull, closePullRequest, mergePullRequest } from './features/pullRequests';
+import {
+	checkoutPull,
+	closePullRequest,
+	mergePullRequest,
+	readyForReview,
+	startWorkOnIssue,
+} from './features/pullRequests';
 import { createProjectCommand } from './features/createProject';
 import { addIssueToProject } from './github/graphql';
 import { refreshRepoContext } from './github/repoContext';
@@ -127,6 +133,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				pulls.refresh();
 			}
 		}),
+
+		vscode.commands.registerCommand('repodeck.readyForReview', async (arg: PullArg) => {
+			if (await readyForReview(context, toPull(arg).number)) {
+				pulls.refresh();
+			}
+		}),
+
+		vscode.commands.registerCommand('repodeck.startWorkOnIssue', (arg: IssueArg) =>
+			startWorkOnIssue(context, toIssue(arg)),
+		),
 
 		// ---- Board ----
 
