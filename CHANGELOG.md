@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.4
+
+- Add contributing guide (`CONTRIBUTING.md`).
+- Update README to link to the new contributing guide and reference the new GitHub Discussions board.
+
 ## 0.9.0
 
 - Sidebar refreshes no longer use GitHub's search API, which is capped at 30 requests a
