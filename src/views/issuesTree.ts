@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getOctokit } from '../auth/session';
+import { getLogin, getOctokit } from '../auth/session';
 import { readRepoState, type RepoRef } from '../github/repoContext';
 
 export interface IssueItem {
@@ -101,7 +101,12 @@ export class IssuesTreeProvider implements vscode.TreeDataProvider<Node> {
 			return [];
 		}
 
-		const login = (await octokit.rest.users.getAuthenticated()).data.login;
+		// getOctokit already resolved and cached the login; asking GitHub again here cost a
+		// round trip per category, on every refresh.
+		const login = getLogin();
+		if (!login) {
+			return [];
+		}
 
 		// The search API is one call for any category, where the issues API would need
 		// different endpoints per filter.

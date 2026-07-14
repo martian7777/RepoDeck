@@ -19,12 +19,19 @@ import {
 	getRepositoryId,
 	listProjects,
 } from '../github/graphql';
-import { fetchProject, setItemField, type Value } from '../github/project';
+import { fetchProject, setItemField, type Project, type Value } from '../github/project';
 import { readRepoState } from '../github/repoContext';
 import { renderHtml } from './webviewHost';
 
 let panel: vscode.WebviewPanel | undefined;
 let projectId: string | undefined;
+
+/**
+ * Last-known project, per id. Reopening the panel paints from this immediately and the
+ * real fetch lands behind it — a project with 1000 items is several sequential GraphQL
+ * pages, and waiting on that with a blank panel is what made this feel broken.
+ */
+const cache = new Map<string, Project>();
 
 const config = () => vscode.workspace.getConfiguration('repodeck');
 const setConfig = (key: string, value: string) =>
@@ -116,6 +123,23 @@ async function resolveProject(context: vscode.ExtensionContext): Promise<string 
 	return picked.id;
 }
 
+function post(project: Project): void {
+	if (!panel) {
+		return;
+	}
+	panel.title = project.title;
+	panel.webview.postMessage({
+		type: 'project',
+		project,
+		layout: config().get<string>('layout', 'board'),
+		groupById: config().get<string>('boardField', '') || undefined,
+		roadmap: {
+			startFieldId: config().get<string>('roadmapStart', '') || undefined,
+			targetFieldId: config().get<string>('roadmapTarget', '') || undefined,
+		},
+	});
+}
+
 async function push(context: vscode.ExtensionContext): Promise<void> {
 	if (!panel || !projectId) {
 		return;
@@ -124,23 +148,32 @@ async function push(context: vscode.ExtensionContext): Promise<void> {
 	if (!octokit) {
 		return;
 	}
+	const id = projectId;
+
+	// Paint what we had, if anything, so the panel is never blank while the network runs.
+	const cached = cache.get(id);
+	if (cached) {
+		post(cached);
+	}
 
 	panel.webview.postMessage({ type: 'loading' });
 	try {
-		const project = await fetchProject(octokit, projectId);
-		panel.title = project.title;
-		panel.webview.postMessage({
-			type: 'project',
-			project,
-			layout: config().get<string>('layout', 'board'),
-			groupById: config().get<string>('boardField', '') || undefined,
-			roadmap: {
-				startFieldId: config().get<string>('roadmapStart', '') || undefined,
-				targetFieldId: config().get<string>('roadmapTarget', '') || undefined,
-			},
-		});
+		const project = await fetchProject(octokit, id);
+		cache.set(id, project);
+		post(project);
 	} catch (err) {
-		panel.webview.postMessage({ type: 'error', message: `Couldn't load the project. ${describe(err)}` });
+		if (cached) {
+			// We're already showing something real; don't blow it away over a failed refresh.
+			panel.webview.postMessage({
+				type: 'stale',
+				message: `Couldn't refresh. ${describe(err)}`,
+			});
+		} else {
+			panel.webview.postMessage({
+				type: 'error',
+				message: `Couldn't load the project. ${describe(err)}`,
+			});
+		}
 	}
 }
 
@@ -159,14 +192,14 @@ async function handleMessage(context: vscode.ExtensionContext, msg: any): Promis
 				await reload();
 				return;
 
+			// The webview already holds every item and field, so a layout or group-by change
+			// is a redraw, not a fetch. These messages only persist the choice.
 			case 'setLayout':
 				await setConfig('layout', msg.layout);
-				await reload();
 				return;
 
 			case 'groupBy':
 				await setConfig('boardField', msg.fieldId);
-				await reload();
 				return;
 
 			case 'changeProject':

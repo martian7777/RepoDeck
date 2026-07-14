@@ -168,7 +168,12 @@ export async function fetchIssueProjects(
 				projectItems: {
 					nodes: {
 						id: string;
-						project: { id: string; title: string; url: string };
+						project: {
+							id: string;
+							title: string;
+							url: string;
+							fields: { nodes: (ProjectField | Record<string, never>)[] };
+						};
 						fieldValues: { nodes: RawFieldValue[] };
 					}[];
 				};
@@ -181,7 +186,16 @@ export async function fetchIssueProjects(
 					projectItems(first: 20) {
 						nodes {
 							id
-							project { id title url }
+							project {
+								id title url
+								fields(first: 50) {
+									nodes {
+										... on ProjectV2SingleSelectField {
+											id name options { id name color }
+										}
+									}
+								}
+							}
 							fieldValues(first: 30) {
 								nodes {
 									__typename
@@ -217,48 +231,47 @@ export async function fetchIssueProjects(
 
 	const nodes = data.repository.issue?.projectItems.nodes ?? [];
 
-	// A field with no value set doesn't appear in `fieldValues` at all — so the values
-	// alone can't tell us which fields the item *could* have. The project's schema can.
-	return Promise.all(
-		nodes.map(async (item) => {
-			const fields = await listFields(octokit, item.project.id).catch(() => []);
-			const chosen = new Map<string, string>();
-			const readonlyFields: ItemReadonlyField[] = [];
+	// A field with no value set doesn't appear in `fieldValues` at all, so the values alone
+	// can't tell us which fields the item *could* have — the project's schema can. It comes
+	// back in the query above; fetching it per item was an extra round trip per project.
+	return nodes.map((item) => {
+		const fields = (item.project.fields?.nodes ?? []).filter((f) => f?.id);
+		const chosen = new Map<string, string>();
+		const readonlyFields: ItemReadonlyField[] = [];
 
-			for (const v of item.fieldValues.nodes) {
-				if (v.__typename === 'ProjectV2ItemFieldSingleSelectValue' && v.field?.id && v.optionId) {
-					chosen.set(v.field.id, v.optionId);
-				} else if (v.field?.name) {
-					const value =
-						v.text ??
-						(v.number !== undefined && v.number !== null ? String(v.number) : undefined) ??
-						v.date ??
-						v.iterationTitle;
-					if (value) {
-						readonlyFields.push({ name: v.field.name, value });
-					}
+		for (const v of item.fieldValues.nodes) {
+			if (v.__typename === 'ProjectV2ItemFieldSingleSelectValue' && v.field?.id && v.optionId) {
+				chosen.set(v.field.id, v.optionId);
+			} else if (v.field?.name) {
+				const value =
+					v.text ??
+					(v.number !== undefined && v.number !== null ? String(v.number) : undefined) ??
+					v.date ??
+					v.iterationTitle;
+				if (value) {
+					readonlyFields.push({ name: v.field.name, value });
 				}
 			}
+		}
 
-			const selectFields: ItemSelectField[] = fields
-				.filter((f) => f.options && f.options.length > 0)
-				.map((f) => ({
-					fieldId: f.id,
-					name: f.name,
-					optionId: chosen.get(f.id),
-					options: f.options!.map((o) => ({ id: o.id, name: o.name, color: o.color ?? 'GRAY' })),
-				}));
+		const selectFields: ItemSelectField[] = fields
+			.filter((f) => f.options && f.options.length > 0)
+			.map((f) => ({
+				fieldId: f.id,
+				name: f.name,
+				optionId: chosen.get(f.id),
+				options: f.options!.map((o) => ({ id: o.id, name: o.name, color: o.color ?? 'GRAY' })),
+			}));
 
-			return {
-				itemId: item.id,
-				projectId: item.project.id,
-				projectTitle: item.project.title,
-				projectUrl: item.project.url,
-				selectFields,
-				readonlyFields,
-			};
-		}),
-	);
+		return {
+			itemId: item.id,
+			projectId: item.project.id,
+			projectTitle: item.project.title,
+			projectUrl: item.project.url,
+			selectFields,
+			readonlyFields,
+		};
+	});
 }
 
 interface RawFieldValue {

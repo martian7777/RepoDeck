@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getOctokit } from '../auth/session';
+import { getLogin, getOctokit } from '../auth/session';
 import { readRepoState, type RepoRef } from '../github/repoContext';
 import type { PullSummary } from '../github/prs';
 
@@ -87,7 +87,12 @@ export class PullsTreeProvider implements vscode.TreeDataProvider<Node> {
 			return [];
 		}
 
-		const login = (await octokit.rest.users.getAuthenticated()).data.login;
+		// Cached from sign-in — this used to be a round trip per category, per refresh.
+		const login = getLogin();
+		if (!login) {
+			return [];
+		}
+
 		const { data } = await octokit.rest.search.issuesAndPullRequests({
 			q: node.query(state.ref, login),
 			per_page: 50,

@@ -52,104 +52,161 @@ button:disabled {
 
 /* ---- Project shell (Table / Board / Roadmap all live in here) ---- */
 
+/* The panel is a fixed-height flex column: header, then one layout that owns the rest of
+   the height and does all the scrolling. Nothing here may scroll the page body. */
 .project {
 	display: flex;
 	flex-direction: column;
 	height: 100vh;
+	overflow: hidden;
 }
 .project > header {
 	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
 	padding: 12px 16px;
 	border-bottom: 1px solid var(--vscode-panel-border);
 }
-.project h1 {
-	font-size: 1.15em;
-	margin: 0;
-}
-.project .warn {
-	margin: 4px 0 0;
-	font-size: 0.85em;
-	color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground));
-}
 
-/* The toolbar wraps rather than overflowing when the panel is narrow. */
-.project .bar {
+/* Two rows, each a clean flex line. The previous version collapsed them onto one another. */
+.project > header .row {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
 	flex-wrap: wrap;
-	margin-top: 10px;
+	min-width: 0;
+}
+.project h1 {
+	font-size: 1.15em;
+	margin: 0;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.project .warn {
+	margin: 0;
+	font-size: 0.85em;
+	color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground));
 }
 .project .actions {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	flex-wrap: wrap;
+	flex: 0 0 auto;
 }
+
 .layouts {
-	display: flex;
+	display: inline-flex;
 	gap: 2px;
 	background: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-panel-border);
 	border-radius: 6px;
 	padding: 2px;
+	flex: 0 0 auto;
 }
 .layouts button {
 	background: transparent;
 	color: var(--vscode-descriptionForeground);
 	border-radius: 4px;
-	padding: 3px 10px;
+	padding: 3px 12px;
 	white-space: nowrap;
+}
+.layouts button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 }
 .layouts button.on {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 }
+
 .groupby {
-	margin: 12px 16px 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
 	font-size: 0.9em;
 	color: var(--vscode-descriptionForeground);
+	flex: 0 0 auto;
+}
+.groupby select {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-dropdown-foreground);
+	background: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border-radius: 4px;
+	padding: 2px 6px;
+}
+
+.spinner {
+	width: 12px;
+	height: 12px;
+	border: 2px solid var(--vscode-panel-border);
+	border-top-color: var(--vscode-focusBorder);
+	border-radius: 50%;
+	animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 /* Every wide layout scrolls inside this, so the page body never scrolls sideways. */
 .scroller {
-	overflow-x: auto;
-	overflow-y: auto;
+	overflow: auto;
 	flex: 1 1 auto;
 	min-height: 0;
 }
 
+/* ---- Board ---- */
+
+/* The column strip is the only thing that scrolls horizontally, and it fills the panel's
+   remaining height — which is what stops the dead space under short columns. */
 .columns {
 	display: flex;
 	gap: 12px;
 	padding: 16px;
-	align-items: flex-start;
+	align-items: stretch;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-x: auto;
+	overflow-y: hidden;
 }
 
 .column {
-	flex: 0 0 280px;
+	flex: 0 0 300px;
+	width: 300px;
 	display: flex;
 	flex-direction: column;
-	max-height: 100%;
+	min-height: 0;
 	background: var(--vscode-sideBar-background);
 	border: 1px solid var(--vscode-panel-border);
-	border-radius: 6px;
-	padding: 10px;
+	border-radius: 8px;
+	overflow: hidden;
 }
 .column.over {
 	border-color: var(--vscode-focusBorder);
 	background: var(--vscode-list-dropBackground);
 }
+
+/* Header stays put while the column's own cards scroll under it. */
 .column h2 {
+	flex: 0 0 auto;
 	font-size: 0.85em;
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
-	margin: 0 0 10px;
+	margin: 0;
+	padding: 10px 10px 8px;
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
+	background: var(--vscode-sideBar-background);
+	border-bottom: 1px solid var(--vscode-panel-border);
 }
 .column h2 .name {
 	flex: 1 1 auto;
@@ -183,13 +240,14 @@ button:disabled {
 }
 
 .add-column {
-	flex: 0 0 200px;
-	align-self: stretch;
-	max-height: 120px;
+	flex: 0 0 180px;
+	width: 180px;
+	align-self: flex-start;
 	background: transparent;
 	border: 1px dashed var(--vscode-panel-border);
 	color: var(--vscode-descriptionForeground);
-	border-radius: 6px;
+	border-radius: 8px;
+	padding: 12px;
 }
 .add-column:hover {
 	border-color: var(--vscode-focusBorder);
@@ -217,20 +275,24 @@ button:disabled {
 	border-radius: 10px;
 	padding: 0 6px;
 }
+/* The cards list is the scroll region — this is what keeps cards inside their column. */
 .cards {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 	overflow-y: auto;
-	min-height: 40px;
+	flex: 1 1 auto;
+	min-height: 0;
+	padding: 10px;
 }
 
 .card {
 	background: var(--vscode-editorWidget-background);
-	border: 1px solid var(--vscode-widget-border, transparent);
-	border-radius: 4px;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 6px;
 	padding: 8px 10px;
-	cursor: grab;
+	cursor: pointer;
+	min-width: 0;
 }
 .card:hover {
 	border-color: var(--vscode-focusBorder);
@@ -242,6 +304,7 @@ button:disabled {
 .card .title {
 	margin: 0 0 6px;
 	line-height: 1.35;
+	overflow-wrap: anywhere;
 }
 .card footer {
 	display: flex;
@@ -807,7 +870,9 @@ aside .chip {
 	flex: 0 0 auto;
 }
 .col-desc {
-	margin: -4px 0 10px;
+	flex: 0 0 auto;
+	margin: 0;
+	padding: 8px 10px 0;
 	font-size: 0.85em;
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
@@ -1103,22 +1168,22 @@ select.cell,
 	.project > header {
 		padding: 10px 12px;
 	}
-	.project .bar {
-		flex-direction: column;
-		align-items: stretch;
-	}
 	.layouts {
-		justify-content: space-between;
+		display: flex;
+		width: 100%;
 	}
 	.layouts button {
 		flex: 1 1 0;
 		text-align: center;
+		padding: 3px 6px;
 	}
 	.columns {
 		padding: 12px;
+		gap: 10px;
 	}
 	.column {
-		flex-basis: 240px;
+		flex-basis: 260px;
+		width: 260px;
 	}
 	.table .col-title {
 		min-width: 200px;
@@ -1129,16 +1194,23 @@ select.cell,
 	}
 }
 
-/* Narrow enough that a horizontal board is unusable: stack the columns instead. */
+/* Narrow enough that a horizontal board is unusable: stack the columns and let the strip
+   scroll vertically instead. */
 @media (max-width: 480px) {
 	.columns {
 		flex-direction: column;
 		overflow-x: hidden;
+		overflow-y: auto;
+		align-items: stretch;
 	}
-	.column,
+	.column {
+		flex: 0 0 auto;
+		width: 100%;
+		max-height: 60vh;
+	}
 	.add-column {
 		flex: 0 0 auto;
 		width: 100%;
-		max-height: none;
+		align-self: stretch;
 	}
 }

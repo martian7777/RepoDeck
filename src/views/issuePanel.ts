@@ -17,12 +17,16 @@ import {
 	setIssueState,
 	setLabels,
 	setMilestone,
+	type IssueDetail,
 } from '../github/issues';
 import { readRepoState } from '../github/repoContext';
 import { refreshBoard } from './boardPanel';
 import { renderHtml } from './webviewHost';
 
 const panels = new Map<number, vscode.WebviewPanel>();
+
+/** Last-known detail per issue, so reopening one paints instantly. */
+const cache = new Map<number, IssueDetail>();
 
 export async function openIssuePanel(
 	context: vscode.ExtensionContext,
@@ -60,17 +64,24 @@ export async function openIssuePanel(
 		if (!state.ref || !client) {
 			return;
 		}
+		const repo = `${state.ref.owner}/${state.ref.repo}`;
+
+		const cached = cache.get(number);
+		if (cached) {
+			panel.title = `#${cached.number} ${cached.title}`;
+			panel.webview.postMessage({ type: 'issue', issue: cached, repo });
+		}
+
 		panel.webview.postMessage({ type: 'loading' });
 		try {
 			const issue = await fetchIssue(client, state.ref, number);
+			cache.set(number, issue);
 			panel.title = `#${issue.number} ${issue.title}`;
-			panel.webview.postMessage({
-				type: 'issue',
-				issue,
-				repo: `${state.ref.owner}/${state.ref.repo}`,
-			});
+			panel.webview.postMessage({ type: 'issue', issue, repo });
 		} catch (err) {
-			panel.webview.postMessage({ type: 'error', message: describe(err) });
+			if (!cached) {
+				panel.webview.postMessage({ type: 'error', message: describe(err) });
+			}
 		}
 	};
 

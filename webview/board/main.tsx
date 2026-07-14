@@ -76,21 +76,30 @@ function App() {
 	const [groupById, setGroupById] = useState<string | undefined>();
 	const [roadmap, setRoadmap] = useState<{ startFieldId?: string; targetFieldId?: string }>({});
 	const [error, setError] = useState<string | undefined>();
+	const [stale, setStale] = useState<string | undefined>();
 	const [loading, setLoading] = useState(true);
+	/** Once the user has chosen a layout here, a later refresh must not yank it back. */
+	const [touched, setTouched] = useState(false);
 
 	useEffect(() => {
 		const onMessage = (e: MessageEvent) => {
 			const msg = e.data;
 			if (msg.type === 'project') {
 				setProject(msg.project);
-				setLayout(msg.layout ?? 'board');
-				setGroupById(msg.groupById);
+				if (!touched) {
+					setLayout(msg.layout ?? 'board');
+					setGroupById(msg.groupById);
+				}
 				setRoadmap(msg.roadmap ?? {});
 				setError(undefined);
+				setStale(undefined);
 				setLoading(false);
 			} else if (msg.type === 'error') {
 				setError(msg.message);
 				setProject(undefined);
+				setLoading(false);
+			} else if (msg.type === 'stale') {
+				setStale(msg.message);
 				setLoading(false);
 			} else if (msg.type === 'loading') {
 				setLoading(true);
@@ -99,7 +108,20 @@ function App() {
 		window.addEventListener('message', onMessage);
 		vscode.postMessage({ type: 'ready' });
 		return () => window.removeEventListener('message', onMessage);
-	}, []);
+	}, [touched]);
+
+	/** Instant: the data is already here, so this is a redraw. The host only persists it. */
+	const chooseLayout = (l: Layout) => {
+		setTouched(true);
+		setLayout(l);
+		vscode.postMessage({ type: 'setLayout', layout: l });
+	};
+
+	const chooseGroup = (fieldId: string) => {
+		setTouched(true);
+		setGroupById(fieldId);
+		vscode.postMessage({ type: 'groupBy', fieldId });
+	};
 
 	/** Writes a field value and reflects it locally, so editing doesn't wait on a round trip. */
 	const write = (itemId: string, fieldId: string, value: Value | undefined) => {
@@ -145,40 +167,51 @@ function App() {
 	return (
 		<div class="project">
 			<header>
-				<div class="titles">
-					<h1>{project.title}</h1>
-					{project.truncated && (
-						<p class="warn">Showing the first 1000 items — this project has more.</p>
-					)}
-				</div>
-
-				<div class="bar">
-					<div class="layouts" role="tablist">
-						{(['table', 'board', 'roadmap'] as Layout[]).map((l) => (
-							<button
-								key={l}
-								class={layout === l ? 'on' : undefined}
-								onClick={() => vscode.postMessage({ type: 'setLayout', layout: l })}
-							>
-								{l === 'table' ? '▤' : l === 'board' ? '▥' : '▤▬'} {l[0].toUpperCase() + l.slice(1)}
-							</button>
-						))}
-					</div>
-
+				<div class="row">
+					<h1 title={project.title}>{project.title}</h1>
 					<div class="actions">
-						{loading && <span class="muted">Refreshing…</span>}
-						<button onClick={() => vscode.postMessage({ type: 'manageFields' })}>Fields…</button>
+						{loading && <span class="spinner" title="Refreshing" />}
+						<button onClick={() => vscode.postMessage({ type: 'manageFields' })}>Fields</button>
 						<button onClick={() => vscode.postMessage({ type: 'refresh' })}>Refresh</button>
 						<button onClick={() => vscode.postMessage({ type: 'changeProject' })}>
 							Change project
 						</button>
 					</div>
 				</div>
+
+				<div class="row">
+					<div class="layouts">
+						{(['table', 'board', 'roadmap'] as Layout[]).map((l) => (
+							<button key={l} class={layout === l ? 'on' : undefined} onClick={() => chooseLayout(l)}>
+								{l[0].toUpperCase() + l.slice(1)}
+							</button>
+						))}
+					</div>
+
+					{layout === 'board' && selectFields.length > 1 && groupField && (
+						<label class="groupby">
+							Group by
+							<select
+								value={groupField.id}
+								onChange={(e) => chooseGroup((e.target as HTMLSelectElement).value)}
+							>
+								{selectFields.map((f) => (
+									<option key={f.id} value={f.id}>
+										{f.name}
+									</option>
+								))}
+							</select>
+						</label>
+					)}
+				</div>
+
+				{project.truncated && (
+					<p class="warn">Showing the first 1000 items — this project has more.</p>
+				)}
+				{stale && <p class="warn">{stale}</p>}
 			</header>
 
-			{layout === 'board' && (
-				<BoardView project={project} field={groupField} fields={selectFields} onGroup={setGroupById} write={write} />
-			)}
+			{layout === 'board' && <BoardView project={project} field={groupField} write={write} />}
 			{layout === 'table' && <TableView project={project} write={write} />}
 			{layout === 'roadmap' && <RoadmapView project={project} roadmap={roadmap} write={write} />}
 		</div>
@@ -404,14 +437,10 @@ function TableView({ project, write }: { project: Project; write: Write }) {
 function BoardView({
 	project,
 	field,
-	fields,
-	onGroup,
 	write,
 }: {
 	project: Project;
 	field: Field | undefined;
-	fields: Field[];
-	onGroup: (id: string) => void;
 	write: Write;
 }) {
 	const [dragging, setDragging] = useState<string | undefined>();
@@ -455,22 +484,8 @@ function BoardView({
 	];
 
 	return (
-		<>
-			{fields.length > 1 && (
-				<p class="groupby">
-					Grouped by{' '}
-					<select value={field.id} onChange={(e) => onGroup((e.target as HTMLSelectElement).value)}>
-						{fields.map((f) => (
-							<option key={f.id} value={f.id}>
-								{f.name}
-							</option>
-						))}
-					</select>
-				</p>
-			)}
-
-			<div class="columns scroller">
-				{all.map((col) => {
+		<div class="columns">
+			{all.map((col) => {
 					const tray = col.id === NO_STATUS;
 					return (
 						<section
@@ -647,9 +662,8 @@ function BoardView({
 					}
 				>
 					+ Add column
-				</button>
-			</div>
-		</>
+			</button>
+		</div>
 	);
 }
 

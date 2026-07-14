@@ -1,13 +1,16 @@
 import * as vscode from 'vscode';
-import { getOctokit } from '../auth/session';
+import { getLogin, getOctokit } from '../auth/session';
 import { describe } from '../features/initRepo';
 import { checkoutPull, closePullRequest, mergePullRequest } from '../features/pullRequests';
 import { readRepoState } from '../github/repoContext';
-import { commentOnPull, fetchPull, reviewPull, type ReviewEvent } from '../github/prs';
+import { commentOnPull, fetchPull, reviewPull, type PullDetail, type ReviewEvent } from '../github/prs';
 import { renderHtml } from './webviewHost';
 
 /** One panel per PR number, reused if it's already open. */
 const panels = new Map<number, vscode.WebviewPanel>();
+
+/** Last-known detail per PR, so reopening one paints instantly. */
+const cache = new Map<number, PullDetail>();
 
 export async function openPullPanel(
 	context: vscode.ExtensionContext,
@@ -39,19 +42,32 @@ export async function openPullPanel(
 	panels.set(number, panel);
 	panel.onDidDispose(() => panels.delete(number));
 
+	const post = (pr: PullDetail) => {
+		panel.title = `#${pr.number} ${pr.title}`;
+		panel.webview.postMessage({ type: 'pr', pr, viewer: getLogin() ?? '' });
+	};
+
 	const push = async () => {
 		const state = await readRepoState();
 		const client = await getOctokit(context, false);
 		if (!state.ref || !client) {
 			return;
 		}
+
+		const cached = cache.get(number);
+		if (cached) {
+			post(cached);
+		}
+
 		panel.webview.postMessage({ type: 'loading' });
 		try {
 			const pr = await fetchPull(client, state.ref, number);
-			panel.title = `#${pr.number} ${pr.title}`;
-			panel.webview.postMessage({ type: 'pr', pr, viewer: (await client.rest.users.getAuthenticated()).data.login });
+			cache.set(number, pr);
+			post(pr);
 		} catch (err) {
-			panel.webview.postMessage({ type: 'error', message: describe(err) });
+			if (!cached) {
+				panel.webview.postMessage({ type: 'error', message: describe(err) });
+			}
 		}
 	};
 
