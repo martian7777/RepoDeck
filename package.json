@@ -51,6 +51,10 @@
         {
           "id": "repodeck.pulls",
           "name": "Pull Requests"
+        },
+        {
+          "id": "repodeck.actions",
+          "name": "GitHub Actions"
         }
       ]
     },
@@ -161,6 +165,66 @@
         "title": "Start Working on Issue",
         "category": "RepoDeck",
         "icon": "$(git-branch)"
+      },
+      {
+        "command": "repodeck.refreshActions",
+        "title": "Refresh",
+        "category": "RepoDeck",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "repodeck.openActionOnGitHub",
+        "title": "Open on GitHub",
+        "category": "RepoDeck",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "repodeck.rerunRun",
+        "title": "Re-run Workflow",
+        "category": "RepoDeck",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "repodeck.cancelRun",
+        "title": "Cancel Run",
+        "category": "RepoDeck",
+        "icon": "$(stop-circle)"
+      },
+      {
+        "command": "repodeck.addSecret",
+        "title": "Add Secret",
+        "category": "RepoDeck",
+        "icon": "$(add)"
+      },
+      {
+        "command": "repodeck.editSecret",
+        "title": "Update Secret",
+        "category": "RepoDeck",
+        "icon": "$(pencil)"
+      },
+      {
+        "command": "repodeck.deleteSecret",
+        "title": "Delete Secret",
+        "category": "RepoDeck",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "repodeck.addVariable",
+        "title": "Add Variable",
+        "category": "RepoDeck",
+        "icon": "$(add)"
+      },
+      {
+        "command": "repodeck.editVariable",
+        "title": "Edit Variable",
+        "category": "RepoDeck",
+        "icon": "$(pencil)"
+      },
+      {
+        "command": "repodeck.deleteVariable",
+        "title": "Delete Variable",
+        "category": "RepoDeck",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -189,6 +253,11 @@
           "command": "repodeck.refreshPulls",
           "when": "view == repodeck.pulls",
           "group": "navigation@2"
+        },
+        {
+          "command": "repodeck.refreshActions",
+          "when": "view == repodeck.actions",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -226,6 +295,51 @@
           "command": "repodeck.readyForReview",
           "when": "view == repodeck.pulls && viewItem == pull",
           "group": "1_modify"
+        },
+        {
+          "command": "repodeck.openActionOnGitHub",
+          "when": "view == repodeck.actions && (viewItem == run || viewItem == runActive || viewItem == job)",
+          "group": "inline@3"
+        },
+        {
+          "command": "repodeck.rerunRun",
+          "when": "view == repodeck.actions && (viewItem == run || viewItem == runActive)",
+          "group": "inline@1"
+        },
+        {
+          "command": "repodeck.cancelRun",
+          "when": "view == repodeck.actions && viewItem == runActive",
+          "group": "inline@2"
+        },
+        {
+          "command": "repodeck.addSecret",
+          "when": "view == repodeck.actions && viewItem == secretsGroup",
+          "group": "inline@1"
+        },
+        {
+          "command": "repodeck.editSecret",
+          "when": "view == repodeck.actions && viewItem == secret",
+          "group": "inline@1"
+        },
+        {
+          "command": "repodeck.deleteSecret",
+          "when": "view == repodeck.actions && viewItem == secret",
+          "group": "inline@2"
+        },
+        {
+          "command": "repodeck.addVariable",
+          "when": "view == repodeck.actions && viewItem == variablesGroup",
+          "group": "inline@1"
+        },
+        {
+          "command": "repodeck.editVariable",
+          "when": "view == repodeck.actions && viewItem == variable",
+          "group": "inline@1"
+        },
+        {
+          "command": "repodeck.deleteVariable",
+          "when": "view == repodeck.actions && viewItem == variable",
+          "group": "inline@2"
         }
       ]
     },
@@ -281,10 +395,12 @@
     "@octokit/plugin-retry": "^7.2.1",
     "@octokit/plugin-throttling": "^9.6.1",
     "@octokit/rest": "^21.0.2",
+    "libsodium-wrappers": "^0.7.16",
     "marked": "^14.1.4",
     "preact": "^10.24.3"
   },
   "devDependencies": {
+    "@types/libsodium-wrappers": "^0.7.14",
     "@types/node": "^22.7.5",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^3.2.1",

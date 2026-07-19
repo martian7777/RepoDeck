@@ -1,7 +1,24 @@
 import * as esbuild from 'esbuild';
+import { createRequire } from 'node:module';
 
+const require = createRequire(import.meta.url);
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
+
+/**
+ * libsodium-wrappers' ESM entry (which its `exports` map forces esbuild to pick) imports a
+ * sibling `.mjs` it doesn't ship, so the bundle can't resolve it. Its CommonJS build is
+ * self-contained; resolve the package straight to that file, sidestepping the exports map.
+ */
+const libsodiumCjs = {
+	name: 'libsodium-cjs',
+	setup(build) {
+		build.onResolve({ filter: /^libsodium-wrappers$/ }, () => ({
+			// require.resolve uses the `require` export condition → the CommonJS build.
+			path: require.resolve('libsodium-wrappers'),
+		}));
+	},
+};
 
 /** The extension host: Node, CommonJS, and `vscode` is provided by the runtime. */
 const extensionConfig = {
@@ -12,6 +29,7 @@ const extensionConfig = {
 	format: 'cjs',
 	target: 'node18',
 	external: ['vscode'],
+	plugins: [libsodiumCjs],
 	sourcemap: !production,
 	minify: production,
 	logLevel: 'info',

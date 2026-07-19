@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getOctokit, onDidChangeAuthentication, signOut } from './auth/session';
+import { getOctokit, onDidChangeAuthentication, signOut, type Client } from './auth/session';
 import { initRepo, describe } from './features/initRepo';
 import {
 	checkoutPull,
@@ -10,7 +10,7 @@ import {
 } from './features/pullRequests';
 import { createProjectCommand } from './features/createProject';
 import { addIssueToProject } from './github/graphql';
-import { refreshRepoContext } from './github/repoContext';
+import { readRepoState, refreshRepoContext, type RepoRef } from './github/repoContext';
 import type { PullSummary } from './github/prs';
 import { openBoard, activeProjectId, refreshBoard, setActiveProject } from './views/boardPanel';
 import { openIssueForm, openPullForm } from './views/formPanel';
@@ -18,23 +18,67 @@ import { IssuesTreeProvider, toIssue, type IssueItem } from './views/issuesTree'
 import { openIssuePanel } from './views/issuePanel';
 import { PullsTreeProvider, toPull } from './views/prTree';
 import { openPullPanel } from './views/prPanel';
+import {
+	ActionsTreeProvider,
+	GroupNode,
+	RunNode,
+	SecretNode,
+	VariableNode,
+} from './views/actionsTree';
+import { cancelRun, rerunRun } from './github/actions';
+import {
+	addSecret,
+	addVariable,
+	editSecret,
+	editVariable,
+	removeSecret,
+	removeVariable,
+} from './features/actionsSettings';
 
 /** A view/item command is invoked with the tree element; a row click with the payload. */
 type IssueArg = IssueItem | { issue: IssueItem };
 type PullArg = PullSummary | { pull: PullSummary };
 
+/**
+ * Runs a one-shot Actions mutation (re-run, cancel) with progress and uniform error
+ * reporting, returning whether it succeeded so the caller can refresh.
+ */
+async function runActionOp(
+	context: vscode.ExtensionContext,
+	title: string,
+	op: (octokit: Client, ref: RepoRef) => Promise<void>,
+): Promise<boolean> {
+	const [state, octokit] = await Promise.all([readRepoState(), getOctokit(context)]);
+	if (!state.ref || !octokit) {
+		return false;
+	}
+	try {
+		await vscode.window.withProgress(
+			{ location: vscode.ProgressLocation.Notification, title: `RepoDeck: ${title}` },
+			() => op(octokit, state.ref!),
+		);
+		return true;
+	} catch (err) {
+		vscode.window.showErrorMessage(`RepoDeck: ${title.toLowerCase()} failed. ${describe(err)}`);
+		return false;
+	}
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	const issues = new IssuesTreeProvider(context);
 	const pulls = new PullsTreeProvider(context);
+	const actions = new ActionsTreeProvider(context);
 
 	const refreshAll = () => {
 		issues.refresh();
 		pulls.refresh();
+		actions.refresh();
 	};
 
 	context.subscriptions.push(
 		vscode.window.createTreeView('repodeck.issues', { treeDataProvider: issues }),
 		vscode.window.createTreeView('repodeck.pulls', { treeDataProvider: pulls }),
+		vscode.window.createTreeView('repodeck.actions', { treeDataProvider: actions }),
 		onDidChangeAuthentication(refreshAll),
 
 		vscode.commands.registerCommand('repodeck.signIn', async () => {
@@ -155,6 +199,62 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				await openBoard(context);
 			}
 		}),
+
+		// ---- GitHub Actions ----
+
+		vscode.commands.registerCommand('repodeck.refreshActions', async () => {
+			await refreshRepoContext();
+			actions.refresh();
+		}),
+
+		vscode.commands.registerCommand('repodeck.openActionOnGitHub', (node: RunNode | { job: { url: string } }) => {
+			const url = node instanceof RunNode ? node.run.url : node.job.url;
+			if (url) {
+				vscode.env.openExternal(vscode.Uri.parse(url));
+			}
+		}),
+
+		vscode.commands.registerCommand('repodeck.rerunRun', async (node: RunNode) => {
+			const ok = await runActionOp(context, 'Re-running workflow', (octokit, ref) =>
+				rerunRun(octokit, ref, node.run.id),
+			);
+			if (ok) {
+				actions.refresh();
+			}
+		}),
+
+		vscode.commands.registerCommand('repodeck.cancelRun', async (node: RunNode) => {
+			const ok = await runActionOp(context, 'Cancelling run', (octokit, ref) =>
+				cancelRun(octokit, ref, node.run.id),
+			);
+			if (ok) {
+				actions.refresh();
+			}
+		}),
+
+		vscode.commands.registerCommand('repodeck.addSecret', (node: GroupNode) =>
+			addSecret(context, node.scope, () => actions.refresh()),
+		),
+
+		vscode.commands.registerCommand('repodeck.editSecret', (node: SecretNode) =>
+			editSecret(context, node.secret, node.scope, () => actions.refresh()),
+		),
+
+		vscode.commands.registerCommand('repodeck.deleteSecret', (node: SecretNode) =>
+			removeSecret(context, node.secret, node.scope, () => actions.refresh()),
+		),
+
+		vscode.commands.registerCommand('repodeck.addVariable', (node: GroupNode) =>
+			addVariable(context, node.scope, () => actions.refresh()),
+		),
+
+		vscode.commands.registerCommand('repodeck.editVariable', (node: VariableNode) =>
+			editVariable(context, node.variable, node.scope, () => actions.refresh()),
+		),
+
+		vscode.commands.registerCommand('repodeck.deleteVariable', (node: VariableNode) =>
+			removeVariable(context, node.variable, node.scope, () => actions.refresh()),
+		),
 	);
 
 	// Seed `repodeck:hasRepo` so the welcome view is right on first paint, and try a
