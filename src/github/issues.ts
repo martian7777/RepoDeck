@@ -1,25 +1,9 @@
 import type { Octokit } from '@octokit/rest';
 import type { RepoRef } from './repoContext';
 import { fetchIssueProjects, type IssueProjectLink } from './graphql';
+import { toTimeline, type TimelineEntry } from './timeline';
 
-export interface IssueComment {
-	author: string;
-	body: string;
-	createdAt: string;
-}
-
-/** One entry in the issue history: either a comment, or something that happened to it. */
-export interface TimelineEntry {
-	kind: 'comment' | 'event';
-	actor: string;
-	createdAt: string;
-	/** Comments only. */
-	body?: string;
-	/** Events only — already phrased for display, e.g. "assigned LRxDarkDevil". */
-	text?: string;
-	/** Events only — a glyph for the timeline rail. */
-	icon?: string;
-}
+export type { TimelineEntry };
 
 export interface IssueDetail {
 	number: number;
@@ -28,6 +12,7 @@ export interface IssueDetail {
 	state: string;
 	url: string;
 	author: string;
+	authorAvatarUrl: string;
 	nodeId: string;
 	createdAt: string;
 	assignees: string[];
@@ -69,6 +54,7 @@ export async function fetchIssue(
 		state: issue.state,
 		url: issue.html_url,
 		author: issue.user?.login ?? 'unknown',
+		authorAvatarUrl: issue.user?.avatar_url ?? '',
 		nodeId: issue.node_id,
 		createdAt: issue.created_at,
 		assignees: (issue.assignees ?? []).map((a) => a.login),
@@ -82,78 +68,6 @@ export async function fetchIssue(
 	};
 }
 
-/**
- * Flattens GitHub's timeline into entries we can render.
- *
- * The endpoint returns dozens of event types with wildly different shapes, and it is a
- * moving target — so anything we don't explicitly phrase is dropped rather than shown as
- * a raw event name.
- */
-function toTimeline(events: any[]): TimelineEntry[] {
-	const entries: TimelineEntry[] = [];
-
-	for (const e of events) {
-		const actor = e.actor?.login ?? e.user?.login ?? 'someone';
-		const createdAt = e.created_at ?? e.submitted_at ?? '';
-
-		if (e.event === 'commented') {
-			entries.push({ kind: 'comment', actor, createdAt, body: e.body ?? '' });
-			continue;
-		}
-
-		const phrased = phrase(e);
-		if (phrased) {
-			entries.push({ kind: 'event', actor, createdAt, ...phrased });
-		}
-	}
-
-	return entries.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-}
-
-function phrase(e: any): { text: string; icon: string } | undefined {
-	switch (e.event) {
-		case 'assigned':
-			return { text: `assigned ${e.assignee?.login ?? 'someone'}`, icon: '◍' };
-		case 'unassigned':
-			return { text: `unassigned ${e.assignee?.login ?? 'someone'}`, icon: '◍' };
-		case 'labeled':
-			return { text: `added the ${e.label?.name} label`, icon: '⬤' };
-		case 'unlabeled':
-			return { text: `removed the ${e.label?.name} label`, icon: '⬤' };
-		case 'milestoned':
-			return { text: `added this to the ${e.milestone?.title} milestone`, icon: '⚑' };
-		case 'demilestoned':
-			return { text: `removed this from the ${e.milestone?.title} milestone`, icon: '⚑' };
-		case 'closed':
-			return { text: 'closed this', icon: '✓' };
-		case 'reopened':
-			return { text: 'reopened this', icon: '○' };
-		case 'renamed':
-			return { text: `renamed this from "${e.rename?.from}"`, icon: '✎' };
-		case 'referenced':
-		case 'cross-referenced':
-			return { text: 'referenced this', icon: '↗' };
-		case 'added_to_project':
-		case 'added_to_project_v2':
-			return { text: 'added this to a project', icon: '▦' };
-		case 'removed_from_project':
-		case 'removed_from_project_v2':
-			return { text: 'removed this from a project', icon: '▦' };
-		case 'converted_note_to_issue':
-			return { text: 'converted this from a draft issue', icon: '◌' };
-		case 'project_v2_item_status_changed':
-			return { text: 'moved this on a project', icon: '▦' };
-		case 'connected':
-		case 'disconnected':
-		case 'subscribed':
-		case 'unsubscribed':
-		case 'mentioned':
-			return undefined;
-		default:
-			return undefined;
-	}
-}
-
 export async function commentOnIssue(
 	octokit: Octokit,
 	ref: RepoRef,
@@ -161,6 +75,32 @@ export async function commentOnIssue(
 	body: string,
 ): Promise<void> {
 	await octokit.rest.issues.createComment({ ...ref, issue_number: number, body });
+}
+
+/**
+ * Editing a comment.
+ *
+ * The issue endpoints cover pull requests too — a PR's conversation comments are issue
+ * comments — so the PR panel edits through these rather than a parallel set. Review bodies
+ * are the exception; those live on `pulls.updateReview`.
+ */
+export async function updateComment(
+	octokit: Octokit,
+	ref: RepoRef,
+	commentId: number,
+	body: string,
+): Promise<void> {
+	await octokit.rest.issues.updateComment({ ...ref, comment_id: commentId, body });
+}
+
+/** Editing the description of an issue or a pull request. */
+export async function updateBody(
+	octokit: Octokit,
+	ref: RepoRef,
+	number: number,
+	body: string,
+): Promise<void> {
+	await octokit.rest.issues.update({ ...ref, issue_number: number, body });
 }
 
 export async function setIssueState(

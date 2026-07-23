@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { getOctokit } from '../auth/session';
 import { git, readRepoState } from '../github/repoContext';
 import {
+	convertToDraft,
 	fetchPull,
 	markReadyForReview,
 	mergePull,
@@ -257,6 +258,30 @@ export async function readyForReview(
 		const { data } = await octokit.rest.pulls.get({ ...state.ref, pull_number: number });
 		await markReadyForReview(octokit, data.node_id);
 		vscode.window.showInformationMessage(`RepoDeck: #${number} is ready for review.`);
+		return true;
+	} catch (err) {
+		vscode.window.showErrorMessage(`RepoDeck: ${describe(err)}`);
+		return false;
+	}
+}
+
+/** The other direction — parks a PR as a draft so reviewers stop being asked. */
+export async function convertPullToDraft(
+	context: vscode.ExtensionContext,
+	number: number,
+): Promise<boolean> {
+	const [state, octokit] = await Promise.all([readRepoState(), getOctokit(context)]);
+	if (!state.ref || !octokit) {
+		return false;
+	}
+	try {
+		const { data } = await octokit.rest.pulls.get({ ...state.ref, pull_number: number });
+		if (data.draft) {
+			vscode.window.showInformationMessage(`RepoDeck: #${number} is already a draft.`);
+			return false;
+		}
+		await convertToDraft(octokit, data.node_id);
+		vscode.window.showInformationMessage(`RepoDeck: #${number} is now a draft.`);
 		return true;
 	} catch (err) {
 		vscode.window.showErrorMessage(`RepoDeck: ${describe(err)}`);

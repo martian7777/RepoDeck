@@ -517,73 +517,12 @@ button:disabled {
 	color: var(--vscode-charts-red);
 }
 
-.checks ul {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-.checks li {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	font-size: 0.92em;
-}
-.checks .marker {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	flex: 0 0 auto;
-}
-.checks .success .marker {
-	background: var(--vscode-charts-green);
-}
-.checks .failure .marker {
-	background: var(--vscode-charts-red);
-}
-.checks .pending .marker {
-	background: var(--vscode-charts-yellow);
-}
-
-.conversation article {
-	border: 1px solid var(--vscode-panel-border);
-	border-radius: 6px;
-	padding: 10px 12px;
-	margin-bottom: 8px;
-}
-.conversation article header {
-	margin-bottom: 6px;
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
 .compose {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
 	border-top: 1px solid var(--vscode-panel-border);
 	padding-top: 16px;
-}
-.compose textarea {
-	font-family: var(--vscode-editor-font-family);
-	font-size: var(--vscode-font-size);
-	color: var(--vscode-input-foreground);
-	background: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 2px;
-	padding: 8px;
-	resize: vertical;
-	line-height: 1.5;
-}
-.compose textarea:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-}
-.compose .actions.merge {
-	border-top: 1px solid var(--vscode-panel-border);
-	padding-top: 10px;
 }
 
 /* ---- Issue ---- */
@@ -1358,4 +1297,410 @@ select.cell,
 		width: 100%;
 		align-self: stretch;
 	}
+}
+
+/* ==== Pull request panel, comment editor and the per-comment menu ==================== */
+
+/* The PR panel now carries a sidebar, so it needs the issue panel's width rather than the
+   narrow single-column one it had. */
+.pr {
+	max-width: 1100px;
+}
+
+/* ---- Tabs ---- */
+
+.tabs {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.tabs button {
+	background: transparent;
+	color: var(--vscode-foreground);
+	border-radius: 6px 6px 0 0;
+	padding: 7px 14px;
+	/* The transparent border reserves the space the active underline fills, so switching
+	   tabs doesn't shift the row by a pixel. */
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+}
+.tabs button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+.tabs button.on {
+	border-bottom-color: var(--vscode-charts-orange, var(--vscode-focusBorder));
+	font-weight: 600;
+}
+.tabs .count {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 10px;
+	padding: 0 7px;
+	margin-left: 5px;
+	font-size: 0.85em;
+	font-weight: normal;
+}
+.tabs .stats {
+	margin-left: auto;
+	padding-right: 4px;
+}
+.tabs.small {
+	border-bottom: none;
+	gap: 2px;
+}
+.tabs.small button {
+	padding: 4px 12px;
+	font-size: 0.95em;
+	border: 1px solid transparent;
+	border-radius: 6px 6px 0 0;
+	margin-bottom: -1px;
+}
+.tabs.small button.on {
+	background: var(--vscode-input-background);
+	border-color: var(--vscode-panel-border);
+	border-bottom-color: var(--vscode-input-background);
+	font-weight: 600;
+}
+
+/* ---- Comment editor ---- */
+
+.editor {
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 6px;
+	overflow: hidden;
+	background: var(--vscode-editorWidget-background);
+}
+.editor-bar {
+	display: flex;
+	align-items: flex-end;
+	gap: 12px;
+	flex-wrap: wrap;
+	padding: 6px 8px 0;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.toolbar {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-left: auto;
+	padding-bottom: 5px;
+	flex-wrap: wrap;
+}
+.tool-group {
+	display: flex;
+	gap: 1px;
+}
+/* Groups read as groups because of the gap between them, so the buttons themselves stay
+   chromeless until hovered. */
+.toolbar button {
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	padding: 3px 7px;
+	min-width: 26px;
+	border-radius: 4px;
+	font-size: 0.95em;
+	line-height: 1.2;
+}
+.toolbar button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+.editor textarea {
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: none;
+	padding: 10px 12px;
+	resize: vertical;
+	line-height: 1.5;
+	min-height: 90px;
+}
+.editor textarea:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+/* Preview matches the textarea's box so switching tabs doesn't resize the panel. */
+.editor .preview {
+	background: var(--vscode-input-background);
+	padding: 10px 12px;
+	min-height: 90px;
+	overflow-x: auto;
+}
+.editor-foot {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	padding: 8px 10px;
+	border-top: 1px solid var(--vscode-panel-border);
+}
+.editor-foot .actions {
+	display: flex;
+	gap: 8px;
+	margin-left: auto;
+	flex-wrap: wrap;
+}
+.compose .actions.review {
+	margin-top: 10px;
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+/* ---- The per-comment menu ---- */
+
+.menu {
+	position: relative;
+	/* Pushes itself to the far right of the comment header, past the timestamp. */
+	margin-left: auto;
+}
+.comment > header .when {
+	margin-left: 0;
+}
+.comment > header .edited {
+	font-size: 0.85em;
+	font-style: italic;
+}
+.menu .dots {
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	padding: 0 7px;
+	border-radius: 4px;
+	line-height: 1.2;
+}
+.menu .dots:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+.menu-pop {
+	position: absolute;
+	top: calc(100% + 4px);
+	right: 0;
+	z-index: 20;
+	min-width: 190px;
+	display: flex;
+	flex-direction: column;
+	padding: 4px;
+	background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+	border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border));
+	border-radius: 6px;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.menu-pop button {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	background: transparent;
+	color: var(--vscode-menu-foreground, var(--vscode-foreground));
+	text-align: left;
+	padding: 5px 9px;
+	border-radius: 4px;
+	white-space: nowrap;
+}
+.menu-pop button:hover {
+	background: var(--vscode-menu-selectionBackground, var(--vscode-toolbar-hoverBackground));
+	color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+}
+.menu-pop .glyph {
+	width: 15px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+}
+
+/* ---- Checks panel ---- */
+
+.checkbox,
+.mergebox {
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 6px;
+	margin-bottom: 18px;
+	overflow: hidden;
+}
+.checkbox > header,
+.mergebox .row {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 12px 14px;
+	background: var(--vscode-editorWidget-background);
+}
+.checkbox > header > div,
+.mergebox .row > div {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.checkbox > header p,
+.mergebox .row p {
+	margin: 2px 0 0;
+	font-size: 0.92em;
+}
+.checkbox > header .link,
+.checkbox li .link {
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	padding: 0 4px;
+}
+.checkbox > header .link:hover,
+.checkbox li .link:hover {
+	background: transparent;
+	text-decoration: underline;
+}
+.checkbox ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid var(--vscode-panel-border);
+}
+.checkbox li {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 9px 14px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	font-size: 0.95em;
+}
+.checkbox li:last-child {
+	border-bottom: none;
+}
+.checkbox .name {
+	flex: 0 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.checkbox .detail {
+	flex: 1 1 auto;
+	font-size: 0.92em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* One marker style serves the check rows, the check headline and the merge box. */
+.checkbox .marker,
+.mergebox .marker {
+	flex: 0 0 auto;
+	width: 10px;
+	height: 10px;
+	margin-top: 4px;
+	border-radius: 50%;
+	background: var(--vscode-descriptionForeground);
+}
+.checkbox li .marker {
+	margin-top: 0;
+}
+.checkbox > header.success .marker,
+.checkbox li.success .marker,
+.mergebox .row.success .marker {
+	background: var(--vscode-charts-green);
+}
+.checkbox > header.failure .marker,
+.checkbox li.failure .marker,
+.mergebox .row.failure .marker {
+	background: var(--vscode-charts-red);
+}
+.checkbox > header.pending .marker,
+.checkbox li.pending .marker,
+.mergebox .row.pending .marker {
+	background: var(--vscode-charts-yellow);
+}
+
+/* ---- Merge box ---- */
+
+.mergebox .actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	padding: 12px 14px;
+	border-top: 1px solid var(--vscode-panel-border);
+}
+.mergebox select {
+	color: var(--vscode-dropdown-foreground);
+	background: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border-radius: 2px;
+	padding: 3px 6px;
+}
+
+/* ---- Commits tab ---- */
+
+.commits {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+.commits li {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.commits li:last-child {
+	border-bottom: none;
+}
+.commits .avatar {
+	width: 26px;
+	height: 26px;
+	box-shadow: none;
+	font-size: 0.8em;
+}
+.commits .what {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.commits .what p {
+	margin: 2px 0 0;
+	font-size: 0.88em;
+}
+.commits .link {
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	padding: 0;
+	text-align: left;
+}
+.commits .link:hover {
+	background: transparent;
+	text-decoration: underline;
+}
+.commits .message {
+	display: block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.commits .sha {
+	flex: 0 0 auto;
+	font-family: var(--vscode-editor-font-family);
+	font-size: 0.9em;
+}
+
+/* ---- Sidebar additions ---- */
+
+/* Real GitHub avatars — the webview CSP allows https images, so this is an <img> with the
+   letter placeholder as its fallback. */
+img.avatar {
+	object-fit: cover;
+}
+.faces {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.faces .avatar {
+	width: 26px;
+	height: 26px;
+	box-shadow: none;
+	font-size: 0.8em;
 }

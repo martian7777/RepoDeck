@@ -1,6 +1,17 @@
 import { render } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
-import { Markdown } from '../shared/markdown';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { Editor } from '../shared/editor';
+import { quote } from '../shared/commentMenu';
+import { Avatar, Timeline, type TimelineEntry } from '../shared/timeline';
+import {
+	LabelList,
+	LoginList,
+	Participants,
+	Projects,
+	Section,
+	type ProjectLink,
+} from '../shared/sidebar';
+import { ago, exact } from '../shared/time';
 
 declare function acquireVsCodeApi(): { postMessage(msg: unknown): void };
 const vscode = acquireVsCodeApi();
@@ -8,12 +19,19 @@ const vscode = acquireVsCodeApi();
 interface Check {
 	name: string;
 	status: 'success' | 'failure' | 'pending';
+	state: 'queued' | 'in_progress' | 'completed';
+	conclusion?: string;
+	url?: string;
+	detail: string;
 }
-interface Comment {
+interface Commit {
+	sha: string;
+	shortSha: string;
+	message: string;
 	author: string;
-	body: string;
-	createdAt: string;
-	reviewState?: string;
+	avatarUrl: string;
+	date: string;
+	url: string;
 }
 interface Pr {
 	number: number;
@@ -22,6 +40,9 @@ interface Pr {
 	state: string;
 	url: string;
 	author: string;
+	authorAvatarUrl: string;
+	nodeId: string;
+	createdAt: string;
 	draft: boolean;
 	baseRef: string;
 	headRef: string;
@@ -32,16 +53,24 @@ interface Pr {
 	changedFiles: number;
 	additions: number;
 	deletions: number;
+	commits: number;
+	assignees: string[];
+	reviewers: string[];
+	labels: { name: string; color: string }[];
+	milestone?: string;
 	checks: Check[];
-	comments: Comment[];
+	timeline: TimelineEntry[];
+	commitList: Commit[];
+	participants: { login: string; avatarUrl: string }[];
+	projects: ProjectLink[];
+	projectsReadable: boolean;
 }
 
-const REVIEW_LABEL: Record<string, string> = {
-	APPROVED: 'approved',
-	CHANGES_REQUESTED: 'requested changes',
-	COMMENTED: 'reviewed',
-	DISMISSED: 'review dismissed',
-};
+const MERGE_METHODS = [
+	{ value: 'merge', label: 'Create a merge commit' },
+	{ value: 'squash', label: 'Squash and merge' },
+	{ value: 'rebase', label: 'Rebase and merge' },
+];
 
 function App() {
 	const [pr, setPr] = useState<Pr | undefined>();
@@ -50,6 +79,8 @@ function App() {
 	const [actionError, setActionError] = useState<string | undefined>();
 	const [loading, setLoading] = useState(true);
 	const [draft, setDraft] = useState('');
+	const [tab, setTab] = useState<'conversation' | 'commits'>('conversation');
+	const composer = useRef<HTMLTextAreaElement | null>(null);
 
 	useEffect(() => {
 		const onMessage = (e: MessageEvent) => {
@@ -83,12 +114,35 @@ function App() {
 
 	const own = pr.author === viewer;
 	const closed = pr.state === 'closed';
-	const failing = pr.checks.filter((c) => c.status === 'failure').length;
-	const pending = pr.checks.filter((c) => c.status === 'pending').length;
+	const active = !closed && !pr.merged;
 
 	const send = (msg: Record<string, unknown>) => {
 		setActionError(undefined);
 		vscode.postMessage(msg);
+	};
+
+	// Quote reply lands in the composer, which means switching back to Conversation if the
+	// user is looking at Commits.
+	const quoteReply = (body: string) => {
+		setTab('conversation');
+		setDraft((d) => `${d ? `${d.replace(/\n*$/, '')}\n\n` : ''}${quote(body)}`);
+		requestAnimationFrame(() => {
+			composer.current?.focus();
+			composer.current?.scrollIntoView({ block: 'center' });
+		});
+	};
+
+	const actions = {
+		viewer,
+		onCopyLink: (url: string) => send({ type: 'copyLink', url }),
+		onCopyMarkdown: (body: string) => send({ type: 'copyMarkdown', body }),
+		onQuoteReply: quoteReply,
+		onSaveEdit: (entry: TimelineEntry, body: string) =>
+			send({
+				type: entry.commentKind === 'review' ? 'editReview' : 'editComment',
+				id: entry.id,
+				body,
+			}),
 	};
 
 	return (
@@ -99,149 +153,342 @@ function App() {
 						{pr.title} <span class="num">#{pr.number}</span>
 					</h1>
 					<p class="muted">
-						<span class={`pill ${pr.merged ? 'merged' : closed ? 'closed' : pr.draft ? 'draft' : 'open'}`}>
+						<span
+							class={`pill ${pr.merged ? 'merged' : closed ? 'closed' : pr.draft ? 'draft' : 'open'}`}
+						>
 							{pr.merged ? 'Merged' : closed ? 'Closed' : pr.draft ? 'Draft' : 'Open'}
 						</span>{' '}
-						{pr.author} wants to merge <code>{pr.headRef}</code> into <code>{pr.baseRef}</code>
+						<strong>{pr.author}</strong> wants to merge {pr.commits} commit
+						{pr.commits === 1 ? '' : 's'} from <code>{pr.headRef}</code> into{' '}
+						<code>{pr.baseRef}</code>
 						{pr.isFork && ' (from a fork)'}
 					</p>
 				</div>
 				<div class="actions">
 					<button onClick={() => send({ type: 'refresh' })}>Refresh</button>
 					<button onClick={() => send({ type: 'openExternal', url: pr.url })}>Open on GitHub</button>
+					{loading && <span class="muted">Refreshing…</span>}
 				</div>
 			</header>
 
 			{actionError && <p class="error">{actionError}</p>}
 
-			<div class="stats">
-				<span>
-					{pr.changedFiles} file{pr.changedFiles === 1 ? '' : 's'}
+			<div class="tabs">
+				<button
+					class={tab === 'conversation' ? 'on' : undefined}
+					onClick={() => setTab('conversation')}
+				>
+					Conversation <span class="count">{pr.timeline.filter((e) => e.kind === 'comment').length}</span>
+				</button>
+				<button class={tab === 'commits' ? 'on' : undefined} onClick={() => setTab('commits')}>
+					Commits <span class="count">{pr.commits}</span>
+				</button>
+				<span class="stats">
+					<span>
+						{pr.changedFiles} file{pr.changedFiles === 1 ? '' : 's'}
+					</span>
+					<span class="add">+{pr.additions}</span>
+					<span class="del">−{pr.deletions}</span>
 				</span>
-				<span class="add">+{pr.additions}</span>
-				<span class="del">−{pr.deletions}</span>
 			</div>
 
-			{pr.checks.length > 0 && (
-				<section class="checks">
-					<h2>
-						Checks{' '}
-						<span class="muted">
-							{failing > 0
-								? `${failing} failing`
-								: pending > 0
-									? `${pending} running`
-									: 'all passing'}
-						</span>
-					</h2>
-					<ul>
-						{pr.checks.map((c) => (
-							<li key={c.name} class={c.status}>
-								<span class="marker" />
-								{c.name}
-							</li>
-						))}
-					</ul>
-				</section>
-			)}
+			<div class="layout">
+				<main>
+					{tab === 'commits' ? (
+						<Commits commits={pr.commitList} onOpen={(url) => send({ type: 'openExternal', url })} />
+					) : (
+						<>
+							<Timeline
+								lead={{
+									author: pr.author,
+									avatarUrl: pr.authorAvatarUrl,
+									createdAt: pr.createdAt,
+									body: pr.body,
+									verb: 'commented',
+									url: pr.url,
+									canEdit: own,
+									onSave: (body) => send({ type: 'editBody', body }),
+									empty: <p class="muted">No description provided.</p>,
+								}}
+								entries={pr.timeline}
+								actions={actions}
+							/>
 
-			{pr.body && (
-				<section class="body">
-					<h2>Description</h2>
-					<Markdown text={pr.body} />
-				</section>
-			)}
+							{pr.checks.length > 0 && <Checks checks={pr.checks} send={send} />}
 
-			<section class="conversation">
-				<h2>Conversation</h2>
-				{pr.comments.length === 0 && <p class="muted">No comments yet.</p>}
-				{pr.comments.map((c, i) => (
-					<article key={i}>
-						<header>
-							<strong>{c.author}</strong>{' '}
-							{c.reviewState && (
-								<span class={`pill ${c.reviewState === 'APPROVED' ? 'open' : c.reviewState === 'CHANGES_REQUESTED' ? 'closed' : ''}`}>
-									{REVIEW_LABEL[c.reviewState] ?? c.reviewState.toLowerCase()}
-								</span>
-							)}
-						</header>
-						{c.body && <Markdown text={c.body} />}
-					</article>
-				))}
-			</section>
+							{active && <MergeBox pr={pr} send={send} />}
 
-			{!closed && !pr.merged && (
-				<section class="compose">
-					<textarea
-						rows={5}
-						value={draft}
-						placeholder={own ? 'Leave a comment…' : 'Leave a comment, or write your review here…'}
-						onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
-					/>
+							<section class="compose">
+								<h2>Add a comment</h2>
+								<Editor
+									value={draft}
+									onInput={setDraft}
+									textareaRef={composer}
+									placeholder={
+										own || !active
+											? 'Add your comment here…'
+											: 'Add your comment here, or write your review…'
+									}
+									footer={
+										<>
+											{active && (
+												<button onClick={() => send({ type: 'setState', state: 'closed' })}>
+													Close pull request
+												</button>
+											)}
+											{closed && !pr.merged && (
+												<button onClick={() => send({ type: 'setState', state: 'open' })}>
+													Reopen pull request
+												</button>
+											)}
+											<button
+												class="primary"
+												disabled={!draft.trim()}
+												onClick={() => send({ type: 'comment', body: draft })}
+											>
+												Comment
+											</button>
+										</>
+									}
+								/>
 
-					<div class="actions">
-						<button disabled={!draft.trim()} onClick={() => send({ type: 'comment', body: draft })}>
-							Comment
-						</button>
+								{/* GitHub refuses reviews on your own pull request, so don't offer them. */}
+								{active && !own && (
+									<div class="actions review">
+										<button onClick={() => send({ type: 'review', event: 'APPROVE', body: draft })}>
+											Approve
+										</button>
+										<button
+											disabled={!draft.trim()}
+											title={
+												draft.trim()
+													? undefined
+													: 'GitHub requires a comment when requesting changes'
+											}
+											onClick={() =>
+												send({ type: 'review', event: 'REQUEST_CHANGES', body: draft })
+											}
+										>
+											Request changes
+										</button>
+									</div>
+								)}
+							</section>
+						</>
+					)}
+				</main>
 
-						{/* GitHub refuses reviews on your own pull request, so don't offer them. */}
-						{!own && (
-							<>
-								<button class="primary" onClick={() => send({ type: 'review', event: 'APPROVE', body: draft })}>
-									Approve
-								</button>
-								<button
-									disabled={!draft.trim()}
-									title={draft.trim() ? undefined : 'GitHub requires a comment when requesting changes'}
-									onClick={() => send({ type: 'review', event: 'REQUEST_CHANGES', body: draft })}
-								>
-									Request changes
-								</button>
-							</>
-						)}
-					</div>
+				<aside>
+					<Section
+						title="Reviewers"
+						onEdit={active ? () => send({ type: 'editReviewers', current: pr.reviewers }) : undefined}
+					>
+						<LoginList logins={pr.reviewers} empty="No reviews requested" />
+					</Section>
 
-					<div class="actions merge">
-						<button onClick={() => send({ type: 'checkout' })}>Check out</button>
-						{pr.draft && (
-							<button class="primary" onClick={() => send({ type: 'readyForReview' })}>
-								Ready for review
-							</button>
-						)}
-						<button
-							class="primary"
-							disabled={pr.draft || pr.mergeable === false}
-							title={
-								pr.draft
-									? 'Draft pull requests cannot be merged'
-									: pr.mergeable === false
-										? `Conflicts with ${pr.baseRef}`
-										: undefined
+					<Section title="Assignees" onEdit={() => send({ type: 'editAssignees', current: pr.assignees })}>
+						<LoginList logins={pr.assignees} empty="No one assigned" />
+					</Section>
+
+					<Section
+						title="Labels"
+						onEdit={() => send({ type: 'editLabels', current: pr.labels.map((l) => l.name) })}
+					>
+						<LabelList labels={pr.labels} />
+					</Section>
+
+					<Section
+						title="Projects"
+						onEdit={() =>
+							send({
+								type: 'addToProject',
+								nodeId: pr.nodeId,
+								current: pr.projects.map((p) => p.projectId),
+							})
+						}
+					>
+						<Projects
+							projects={pr.projects}
+							readable={pr.projectsReadable}
+							onOpen={(url) => send({ type: 'openExternal', url })}
+							onRemove={(p) =>
+								send({
+									type: 'removeFromProject',
+									projectId: p.projectId,
+									itemId: p.itemId,
+									projectTitle: p.projectTitle,
+								})
 							}
-							onClick={() => send({ type: 'merge' })}
-						>
-							Merge…
-						</button>
-						<button onClick={() => send({ type: 'setState', state: 'closed' })}>Close</button>
-					</div>
+							onSetStatus={(p, fieldId, optionId) =>
+								send({
+									type: 'setProjectStatus',
+									projectId: p.projectId,
+									itemId: p.itemId,
+									fieldId,
+									optionId,
+								})
+							}
+						/>
+					</Section>
 
-					{pr.mergeable === false && (
-						<p class="error">This branch has conflicts with {pr.baseRef} and can't be merged as-is.</p>
-					)}
-					{pr.mergeable === null && (
-						<p class="muted">GitHub is still working out whether this can merge. Refresh in a moment.</p>
-					)}
-				</section>
-			)}
+					<Section title="Milestone" onEdit={() => send({ type: 'editMilestone' })}>
+						<p class={pr.milestone ? undefined : 'muted'}>{pr.milestone ?? 'No milestone'}</p>
+					</Section>
 
-			{closed && !pr.merged && (
-				<section class="compose">
-					<div class="actions">
-						<button onClick={() => send({ type: 'setState', state: 'open' })}>Reopen</button>
-					</div>
-				</section>
-			)}
+					<Section title="Participants">
+						<Participants people={pr.participants} />
+					</Section>
+				</aside>
+			</div>
 		</div>
+	);
+}
+
+/** The grouped check panel, headlined the way GitHub headlines it. */
+function Checks({ checks, send }: { checks: Check[]; send: (msg: Record<string, unknown>) => void }) {
+	const failing = checks.filter((c) => c.status === 'failure');
+	const pending = checks.filter((c) => c.status === 'pending');
+	const passing = checks.filter((c) => c.status === 'success');
+
+	const [open, setOpen] = useState(true);
+
+	const headline =
+		failing.length > 0
+			? 'Some checks were not successful'
+			: pending.length > 0
+				? "Some checks haven't completed yet"
+				: 'All checks have passed';
+
+	// "2 queued, 2 successful checks" — only the non-empty groups get counted.
+	const summary = [
+		failing.length && `${failing.length} failing`,
+		pending.length && `${pending.length} queued`,
+		passing.length && `${passing.length} successful`,
+	]
+		.filter(Boolean)
+		.join(', ');
+
+	const marker = failing.length > 0 ? 'failure' : pending.length > 0 ? 'pending' : 'success';
+
+	return (
+		<section class="checkbox">
+			<header class={marker}>
+				<span class="marker" />
+				<div>
+					<strong>{headline}</strong>
+					<p class="muted">
+						{summary} check{checks.length === 1 ? '' : 's'}
+					</p>
+				</div>
+				<button class="link" onClick={() => setOpen(!open)}>
+					{open ? 'Hide' : 'Show'}
+				</button>
+			</header>
+
+			{open && (
+				<ul>
+					{[...failing, ...pending, ...passing].map((c) => (
+						<li key={c.name} class={c.status}>
+							<span class="marker" />
+							<span class="name">{c.name}</span>
+							<span class="muted detail">{c.detail}</span>
+							{c.url && (
+								<button class="link" onClick={() => send({ type: 'openExternal', url: c.url })}>
+									Details
+								</button>
+							)}
+						</li>
+					))}
+				</ul>
+			)}
+		</section>
+	);
+}
+
+/** Conflict status plus every action that changes the PR's state. */
+function MergeBox({ pr, send }: { pr: Pr; send: (msg: Record<string, unknown>) => void }) {
+	const [method, setMethod] = useState('merge');
+	const blocked = pr.draft || pr.mergeable === false;
+
+	return (
+		<section class="mergebox">
+			<div class={`row ${pr.mergeable === false ? 'failure' : pr.mergeable === null ? 'pending' : 'success'}`}>
+				<span class="marker" />
+				<div>
+					<strong>
+						{pr.mergeable === false
+							? 'This branch has conflicts that must be resolved'
+							: pr.mergeable === null
+								? 'Checking whether this can be merged'
+								: 'No conflicts with base branch'}
+					</strong>
+					<p class="muted">
+						{pr.mergeable === false
+							? `Conflicts with ${pr.baseRef} — resolve them before merging.`
+							: pr.mergeable === null
+								? 'GitHub is still working this out. Refresh in a moment.'
+								: 'Merging can be performed automatically.'}
+					</p>
+				</div>
+			</div>
+
+			<div class="actions">
+				<select value={method} onChange={(e) => setMethod((e.target as HTMLSelectElement).value)}>
+					{MERGE_METHODS.map((m) => (
+						<option key={m.value} value={m.value}>
+							{m.label}
+						</option>
+					))}
+				</select>
+				<button
+					class="primary"
+					disabled={blocked}
+					title={
+						pr.draft
+							? 'Draft pull requests cannot be merged'
+							: pr.mergeable === false
+								? `Conflicts with ${pr.baseRef}`
+								: undefined
+					}
+					onClick={() => send({ type: 'merge', method })}
+				>
+					Merge pull request
+				</button>
+				<button onClick={() => send({ type: 'checkout' })}>Check out</button>
+				{pr.draft ? (
+					<button onClick={() => send({ type: 'readyForReview' })}>Ready for review</button>
+				) : (
+					<button onClick={() => send({ type: 'convertToDraft' })}>Convert to draft</button>
+				)}
+			</div>
+		</section>
+	);
+}
+
+function Commits({ commits, onOpen }: { commits: Commit[]; onOpen: (url: string) => void }) {
+	if (commits.length === 0) {
+		return <p class="muted">No commits on this branch.</p>;
+	}
+	return (
+		<ul class="commits">
+			{commits.map((c) => (
+				<li key={c.sha}>
+					<Avatar login={c.author} url={c.avatarUrl} />
+					<div class="what">
+						<button class="link message" onClick={() => onOpen(c.url)}>
+							{c.message}
+						</button>
+						<p class="muted">
+							<strong>{c.author}</strong>{' '}
+							<span title={exact(c.date)}>committed {ago(c.date)}</span>
+						</p>
+					</div>
+					<button class="link sha" title="Open this commit on GitHub" onClick={() => onOpen(c.url)}>
+						{c.shortSha}
+					</button>
+				</li>
+			))}
+		</ul>
 	);
 }
 

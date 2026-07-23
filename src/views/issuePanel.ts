@@ -1,26 +1,24 @@
 import * as vscode from 'vscode';
-import { getOctokit } from '../auth/session';
-import { describe, pickOwner } from '../features/initRepo';
-import { createProjectCommand } from '../features/createProject';
-import {
-	addIssueToProject,
-	clearItemField,
-	deleteItem,
-	listProjects,
-	moveCard,
-} from '../github/graphql';
+import { getLogin, getOctokit } from '../auth/session';
+import { describe } from '../features/initRepo';
 import {
 	commentOnIssue,
 	fetchIssue,
-	listMilestones,
-	setAssignees,
 	setIssueState,
-	setLabels,
-	setMilestone,
+	updateBody,
+	updateComment,
 	type IssueDetail,
 } from '../github/issues';
 import { readRepoState } from '../github/repoContext';
-import { refreshBoard } from './boardPanel';
+import {
+	addToProject,
+	editAssignees,
+	editLabels,
+	editMilestone,
+	removeFromProject,
+	setProjectStatus,
+	type SidebarContext,
+} from './sidebarActions';
 import { renderHtml } from './webviewHost';
 
 const panels = new Map<number, vscode.WebviewPanel>();
@@ -65,11 +63,12 @@ export async function openIssuePanel(
 			return;
 		}
 		const repo = `${state.ref.owner}/${state.ref.repo}`;
+		const viewer = getLogin() ?? '';
 
 		const cached = cache.get(number);
 		if (cached) {
 			panel.title = `#${cached.number} ${cached.title}`;
-			panel.webview.postMessage({ type: 'issue', issue: cached, repo });
+			panel.webview.postMessage({ type: 'issue', issue: cached, repo, viewer });
 		}
 
 		panel.webview.postMessage({ type: 'loading' });
@@ -77,7 +76,7 @@ export async function openIssuePanel(
 			const issue = await fetchIssue(client, state.ref, number);
 			cache.set(number, issue);
 			panel.title = `#${issue.number} ${issue.title}`;
-			panel.webview.postMessage({ type: 'issue', issue, repo });
+			panel.webview.postMessage({ type: 'issue', issue, repo, viewer });
 		} catch (err) {
 			if (!cached) {
 				panel.webview.postMessage({ type: 'error', message: describe(err) });
@@ -92,6 +91,7 @@ export async function openIssuePanel(
 			return;
 		}
 		const ref = state.ref;
+		const sidebar: SidebarContext = { context, client, ref, number };
 
 		try {
 			switch (msg?.type) {
@@ -117,134 +117,71 @@ export async function openIssuePanel(
 					await vscode.env.openExternal(vscode.Uri.parse(msg.url));
 					return;
 
+				// ---- Comment actions ----
+
+				case 'copyLink':
+					await vscode.env.clipboard.writeText(msg.url);
+					vscode.window.setStatusBarMessage('RepoDeck: link copied.', 2000);
+					return;
+
+				case 'copyMarkdown':
+					await vscode.env.clipboard.writeText(msg.body ?? '');
+					vscode.window.setStatusBarMessage('RepoDeck: Markdown copied.', 2000);
+					return;
+
+				case 'editComment':
+					if (typeof msg.id === 'number') {
+						await updateComment(client, ref, msg.id, msg.body ?? '');
+						await push();
+					}
+					return;
+
+				case 'editBody':
+					await updateBody(client, ref, number, msg.body ?? '');
+					await push();
+					onChanged();
+					return;
+
 				// ---- Sidebar edits ----
 
-				case 'editAssignees': {
-					const collaborators = await client.rest.repos
-						.listCollaborators({ ...ref, per_page: 100 })
-						.then((r) => r.data.map((c) => c.login))
-						.catch(() => [] as string[]);
-					if (collaborators.length === 0) {
-						vscode.window.showInformationMessage(
-							'RepoDeck: no assignable collaborators on this repository.',
-						);
-						return;
-					}
-					const picked = await vscode.window.showQuickPick(
-						collaborators.map((c) => ({ label: c, picked: msg.current.includes(c) })),
-						{ title: 'Assignees', canPickMany: true, ignoreFocusOut: true },
-					);
-					if (picked) {
-						await setAssignees(client, ref, number, picked.map((p) => p.label));
+				case 'editAssignees':
+					if (await editAssignees(sidebar, msg.current ?? [])) {
 						await push();
 						onChanged();
 					}
 					return;
-				}
 
-				case 'editLabels': {
-					const labels = await client.rest.issues
-						.listLabelsForRepo({ ...ref, per_page: 100 })
-						.then((r) => r.data.map((l) => l.name))
-						.catch(() => [] as string[]);
-					const picked = await vscode.window.showQuickPick(
-						labels.map((l) => ({ label: l, picked: msg.current.includes(l) })),
-						{ title: 'Labels', canPickMany: true, ignoreFocusOut: true },
-					);
-					if (picked) {
-						await setLabels(client, ref, number, picked.map((p) => p.label));
+				case 'editLabels':
+					if (await editLabels(sidebar, msg.current ?? [])) {
 						await push();
 						onChanged();
 					}
 					return;
-				}
 
-				case 'editMilestone': {
-					const milestones = await listMilestones(client, ref).catch(() => []);
-					const picked = await vscode.window.showQuickPick(
-						[
-							{ label: '$(circle-slash) No milestone', number: null as number | null },
-							...milestones.map((m) => ({ label: m.title, number: m.number as number | null })),
-						],
-						{ title: 'Milestone', ignoreFocusOut: true },
-					);
-					if (picked) {
-						await setMilestone(client, ref, number, picked.number);
+				case 'editMilestone':
+					if (await editMilestone(sidebar)) {
 						await push();
 					}
 					return;
-				}
 
 				// ---- Projects ----
 
-				case 'addToProject': {
-					const owner = await pickOwner(context, 'Add to project — owner');
-					if (!owner) {
-						return;
+				case 'addToProject':
+					if (await addToProject(sidebar, msg.nodeId, msg.current ?? [])) {
+						await push();
 					}
-
-					let projects;
-					try {
-						projects = await listProjects(client, owner.login, owner.isOrg);
-					} catch (err) {
-						vscode.window.showErrorMessage(
-							`RepoDeck: couldn't read projects for ${owner.login}. Your token probably lacks the 'project' scope — sign out and sign in again. (${describe(err)})`,
-						);
-						return;
-					}
-
-					// Adding an issue to a project it's already on is a no-op that looks
-					// like a bug, so those projects aren't offered.
-					const already = new Set<string>(msg.current ?? []);
-					const available = projects.filter((p) => !already.has(p.id));
-
-					const picked = await vscode.window.showQuickPick(
-						[
-							{ label: '$(add) New project…', id: '' },
-							...available.map((p) => ({ label: p.title, description: `#${p.number}`, id: p.id })),
-						],
-						{ title: 'Add to project', ignoreFocusOut: true },
-					);
-					if (!picked) {
-						return;
-					}
-
-					const projectId = picked.id || (await createProjectCommand(context));
-					if (!projectId) {
-						return;
-					}
-
-					await addIssueToProject(client, projectId, msg.nodeId);
-					await push();
-					await refreshBoard(context);
-					vscode.window.showInformationMessage(`RepoDeck: added #${number} to the project.`);
 					return;
-				}
 
 				case 'setProjectStatus':
-					if (msg.optionId) {
-						await moveCard(client, msg.projectId, msg.itemId, msg.fieldId, msg.optionId);
-					} else {
-						await clearItemField(client, msg.projectId, msg.itemId, msg.fieldId);
-					}
+					await setProjectStatus(sidebar, msg);
 					await push();
-					await refreshBoard(context);
 					return;
 
-				case 'removeFromProject': {
-					const CONFIRM = 'Remove';
-					const confirm = await vscode.window.showWarningMessage(
-						`Remove #${number} from "${msg.projectTitle}"? The issue itself is not deleted.`,
-						{ modal: true },
-						CONFIRM,
-					);
-					if (confirm === CONFIRM) {
-						await deleteItem(client, msg.projectId, msg.itemId);
+				case 'removeFromProject':
+					if (await removeFromProject(sidebar, msg)) {
 						await push();
-						await refreshBoard(context);
 					}
 					return;
-				}
 			}
 		} catch (err) {
 			panel.webview.postMessage({ type: 'actionError', message: describe(err) });

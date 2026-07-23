@@ -161,10 +161,14 @@ export async function fetchIssueProjects(
 	owner: string,
 	repo: string,
 	number: number,
+	// A pull request is its own GraphQL type, so the same selection has to hang off a
+	// different top-level field. Only the field name differs — everything below is shared.
+	kind: 'issue' | 'pullRequest' = 'issue',
 ): Promise<IssueProjectLink[]> {
 	const data = await octokit.graphql<{
-		repository: {
-			issue: {
+		repository: Record<
+			string,
+			{
 				projectItems: {
 					nodes: {
 						id: string;
@@ -177,12 +181,12 @@ export async function fetchIssueProjects(
 						fieldValues: { nodes: RawFieldValue[] };
 					}[];
 				};
-			} | null;
-		};
+			} | null
+		>;
 	}>(
 		`query($owner: String!, $repo: String!, $number: Int!) {
 			repository(owner: $owner, name: $repo) {
-				issue(number: $number) {
+				${kind}(number: $number) {
 					projectItems(first: 20) {
 						nodes {
 							id
@@ -229,7 +233,7 @@ export async function fetchIssueProjects(
 		{ owner, repo, number },
 	);
 
-	const nodes = data.repository.issue?.projectItems.nodes ?? [];
+	const nodes = data.repository[kind]?.projectItems.nodes ?? [];
 
 	// A field with no value set doesn't appear in `fieldValues` at all, so the values alone
 	// can't tell us which fields the item *could* have — the project's schema can. It comes

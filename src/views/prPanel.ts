@@ -4,11 +4,30 @@ import { describe } from '../features/initRepo';
 import {
 	checkoutPull,
 	closePullRequest,
+	convertPullToDraft,
 	mergePullRequest,
 	readyForReview,
 } from '../features/pullRequests';
 import { readRepoState } from '../github/repoContext';
-import { commentOnPull, fetchPull, reviewPull, type PullDetail, type ReviewEvent } from '../github/prs';
+import { updateBody, updateComment } from '../github/issues';
+import {
+	commentOnPull,
+	fetchPull,
+	reviewPull,
+	updateReview,
+	type PullDetail,
+	type ReviewEvent,
+} from '../github/prs';
+import {
+	addToProject,
+	editAssignees,
+	editLabels,
+	editMilestone,
+	editReviewers,
+	removeFromProject,
+	setProjectStatus,
+	type SidebarContext,
+} from './sidebarActions';
 import { renderHtml } from './webviewHost';
 
 /** One panel per PR number, reused if it's already open. */
@@ -83,6 +102,7 @@ export async function openPullPanel(
 			return;
 		}
 		const ref = state.ref;
+		const sidebar: SidebarContext = { context, client, ref, number };
 
 		try {
 			switch (msg?.type) {
@@ -127,6 +147,14 @@ export async function openPullPanel(
 					}
 					return;
 
+				case 'convertToDraft':
+					if (await convertPullToDraft(context, number)) {
+						cache.delete(number);
+						await push();
+						onChanged();
+					}
+					return;
+
 				case 'setState':
 					if (await closePullRequest(context, number, msg.state)) {
 						await push();
@@ -136,6 +164,90 @@ export async function openPullPanel(
 
 				case 'openExternal':
 					await vscode.env.openExternal(vscode.Uri.parse(msg.url));
+					return;
+
+				// ---- Comment actions ----
+
+				case 'copyLink':
+					await vscode.env.clipboard.writeText(msg.url);
+					vscode.window.setStatusBarMessage('RepoDeck: link copied.', 2000);
+					return;
+
+				case 'copyMarkdown':
+					await vscode.env.clipboard.writeText(msg.body ?? '');
+					vscode.window.setStatusBarMessage('RepoDeck: Markdown copied.', 2000);
+					return;
+
+				// A conversation comment is an issue comment; a review body is not, and
+				// needs the pulls endpoint instead.
+				case 'editComment':
+					if (typeof msg.id === 'number') {
+						await updateComment(client, ref, msg.id, msg.body ?? '');
+						await push();
+					}
+					return;
+
+				case 'editReview':
+					if (typeof msg.id === 'number') {
+						await updateReview(client, ref, number, msg.id, msg.body ?? '');
+						await push();
+					}
+					return;
+
+				case 'editBody':
+					await updateBody(client, ref, number, msg.body ?? '');
+					await push();
+					onChanged();
+					return;
+
+				// ---- Sidebar edits ----
+
+				case 'editReviewers': {
+					const pr = cache.get(number);
+					if (await editReviewers(sidebar, msg.current ?? [], pr?.author ?? '')) {
+						await push();
+						onChanged();
+					}
+					return;
+				}
+
+				case 'editAssignees':
+					if (await editAssignees(sidebar, msg.current ?? [])) {
+						await push();
+						onChanged();
+					}
+					return;
+
+				case 'editLabels':
+					if (await editLabels(sidebar, msg.current ?? [])) {
+						await push();
+						onChanged();
+					}
+					return;
+
+				case 'editMilestone':
+					if (await editMilestone(sidebar)) {
+						await push();
+					}
+					return;
+
+				// ---- Projects ----
+
+				case 'addToProject':
+					if (await addToProject(sidebar, msg.nodeId, msg.current ?? [])) {
+						await push();
+					}
+					return;
+
+				case 'setProjectStatus':
+					await setProjectStatus(sidebar, msg);
+					await push();
+					return;
+
+				case 'removeFromProject':
+					if (await removeFromProject(sidebar, msg)) {
+						await push();
+					}
 					return;
 			}
 		} catch (err) {
