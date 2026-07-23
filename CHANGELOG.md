@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.6
+
+- The **pull request panel** now matches the GitHub conversation view: a threaded timeline
+  with avatars, relative timestamps and events, a `Conversation` / `Commits` tab strip, and
+  a sidebar for reviewers, assignees, labels, projects, milestone and participants.
+- Checks are grouped and described the way GitHub describes them — "2 queued, 2 successful
+  checks", "Successful in 53s", "Queued — Waiting to run this check…" — with a link through
+  to each run.
+- A merge box reports conflicts with the base branch and carries the merge method, check
+  out, close, and convert to draft / ready for review.
+- Comment boxes on issues **and** pull requests are a real editor: **Write** and **Preview**
+  tabs and a formatting toolbar (heading, bold, italic, quote, code, link, lists, task
+  list, mention, reference). Undo still works — the toolbar types into the box rather than
+  replacing its contents.
+- Every description and comment has a **⋯ menu**: copy link, copy Markdown, quote reply,
+  and edit in place. Edit appears on your own comments.
+- Avatars are the real ones from GitHub rather than a letter placeholder.
+
 ## 0.9.5
 
 - New **GitHub Actions** sidebar view: browse workflow runs for the current branch and per

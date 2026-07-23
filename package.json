@@ -2,7 +2,7 @@
   "name": "repodeck",
   "displayName": "RepoDeck — GitHub Issues, PRs & Boards",
   "description": "Initialize repos, create and assign issues, and manage GitHub Project boards with a real kanban — without leaving your editor.",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "publisher": "martian7777",
   "license": "MIT",
   "engines": {

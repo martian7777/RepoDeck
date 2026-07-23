@@ -191,8 +191,12 @@ sequenceDiagram
 ### 💬 4. Issues & Pull Requests Detail Panels
 Interact with issues and PRs in rich, responsive webviews:
 - **Markdown Rendering**: Issue summaries, descriptions, PR descriptions, and timeline comments render full markdown (headings, links, lists, code highlighting, tables) instead of raw text.
-- **Threaded Timeline**: Pull Request and Issue detail panels show full history, comment threads, reviews, events, and automated test check statuses (CI).
-- **Draft Support**: Mark draft pull requests as "Ready for Review" directly from the editor panel.
+- **Threaded Timeline**: Pull Request and Issue detail panels show full history — comment threads, reviews, and events — with real GitHub avatars and relative timestamps ("3 hours ago"), threaded on a single rail.
+- **Full PR view**: A `Conversation` / `Commits` tab strip, and a sidebar for reviewers, assignees, labels, projects, milestone and participants — all editable in place.
+- **Grouped CI checks**: Checks are summarised the way GitHub summarises them ("2 queued, 2 successful checks", "Successful in 53s"), with a link through to each run, above a merge box that reports conflicts with the base branch.
+- **Comment Editor**: Comment boxes have **Write** and **Preview** tabs plus a formatting toolbar (heading, bold, italic, quote, code, link, lists, task list, mention, reference). The toolbar types into the box, so undo keeps working.
+- **Comment Actions**: A `⋯` menu on every description and comment — **Copy link**, **Copy Markdown**, **Quote reply**, and **Edit** in place on your own comments.
+- **Draft Support**: Mark draft pull requests as "Ready for Review" — or convert one back to a draft — directly from the editor panel.
 - **One-click checkout**: Click to pull and check out any pull request branch locally.
 - **Direct Merges**: Merge pull requests using **Merge Commit**, **Squash and Merge**, or **Rebase and Merge** methods directly, with full confirmation prompts and an option to prune/delete the remote branch immediately after.
 
