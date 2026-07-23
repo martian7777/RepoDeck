@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.9.7
+
+- New **Discussions** sidebar view, grouped by the repository's own categories the way
+  github.com groups them, with the accepted-answer state on the icon.
+- A **discussion panel** with the full conversation: top-level comments with their replies
+  indented underneath and a **Reply** box on each thread — one level deep, which is all
+  GitHub allows.
+- Discussion comments carry the same **⋯ menu** as issues and pull requests — copy link,
+  copy Markdown, quote reply, edit in place — and the same Write/Preview Markdown editor.
+  Quoting inside a thread lands in that thread's reply box rather than the main composer.
+- **Upvote** the opening post or any comment, **mark a comment as the answer** in Q&A
+  categories, and **close, reopen, rename or re-categorise** a discussion.
+- **New Discussion** from the view title, with a category picker.
+- Discussions has no REST API, so the whole feature is GraphQL. A repository with
+  Discussions turned off shows a note in the view instead of an error.
+
 ## 0.9.6
 
 - The **pull request panel** now matches the GitHub conversation view: a threaded timeline

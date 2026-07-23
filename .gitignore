@@ -11,4 +11,5 @@ media/board.js
 media/form.js
 media/pr.js
 media/issue.js
+media/discussion.js
 media/*.map

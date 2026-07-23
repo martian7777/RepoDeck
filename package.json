@@ -2,7 +2,7 @@
   "name": "repodeck",
   "displayName": "RepoDeck — GitHub Issues, PRs & Boards",
   "description": "Initialize repos, create and assign issues, and manage GitHub Project boards with a real kanban — without leaving your editor.",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "publisher": "martian7777",
   "license": "MIT",
   "engines": {
@@ -51,6 +51,10 @@
         {
           "id": "repodeck.pulls",
           "name": "Pull Requests"
+        },
+        {
+          "id": "repodeck.discussions",
+          "name": "Discussions"
         },
         {
           "id": "repodeck.actions",
@@ -148,6 +152,29 @@
         "command": "repodeck.closePr",
         "title": "Close Pull Request",
         "category": "RepoDeck"
+      },
+      {
+        "command": "repodeck.createDiscussion",
+        "title": "New Discussion",
+        "category": "RepoDeck",
+        "icon": "$(add)"
+      },
+      {
+        "command": "repodeck.refreshDiscussions",
+        "title": "Refresh Discussions",
+        "category": "RepoDeck",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "repodeck.openDiscussion",
+        "title": "Open Discussion",
+        "category": "RepoDeck"
+      },
+      {
+        "command": "repodeck.openDiscussionOnGitHub",
+        "title": "Open Discussion on GitHub",
+        "category": "RepoDeck",
+        "icon": "$(link-external)"
       },
       {
         "command": "repodeck.createProject",
@@ -255,6 +282,16 @@
           "group": "navigation@2"
         },
         {
+          "command": "repodeck.createDiscussion",
+          "when": "view == repodeck.discussions && repodeck:hasRepo",
+          "group": "navigation@1"
+        },
+        {
+          "command": "repodeck.refreshDiscussions",
+          "when": "view == repodeck.discussions",
+          "group": "navigation@2"
+        },
+        {
           "command": "repodeck.refreshActions",
           "when": "view == repodeck.actions",
           "group": "navigation@1"
@@ -295,6 +332,11 @@
           "command": "repodeck.readyForReview",
           "when": "view == repodeck.pulls && viewItem == pull",
           "group": "1_modify"
+        },
+        {
+          "command": "repodeck.openDiscussionOnGitHub",
+          "when": "view == repodeck.discussions && viewItem == discussion",
+          "group": "inline@1"
         },
         {
           "command": "repodeck.openActionOnGitHub",

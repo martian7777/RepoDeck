@@ -42,6 +42,7 @@ const webviewConfig = {
 		form: 'webview/form/main.tsx',
 		pr: 'webview/pr/main.tsx',
 		issue: 'webview/issue/main.tsx',
+		discussion: 'webview/discussion/main.tsx',
 	},
 	bundle: true,
 	outdir: 'media',

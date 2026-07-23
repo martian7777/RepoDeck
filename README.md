@@ -44,13 +44,15 @@ graph TD
         BP["Board Panel: Board / Table / Roadmap Views"]
         IP["Issue Panel: Timeline, Comments"]
         PRP["PR Panel: Details, Reviews, CI Status"]
-        FP["Form Panels: Create Issue / PR"]
+        DP["Discussion Panel: Threads, Replies, Answers"]
+        FP["Form Panels: Create Issue / PR / Discussion"]
     end
 
     subgraph ExtHost ["VS Code Extension Host"]
         EH["Command Registry & Main Controller"]
         ITP["Issues Tree Data Provider"]
         PTP["PR Tree Data Provider"]
+        DTP["Discussions Tree Data Provider"]
         ATP["Actions Tree Data Provider"]
         Auth["Auth Manager (SecretStorage/Session)"]
         GitCLI["Local Git CLI Wrapper"]
@@ -58,7 +60,7 @@ graph TD
 
     subgraph GHAPI ["GitHub API"]
         REST["GitHub REST API (Issues, PRs, Refs)"]
-        GraphQL["GitHub GraphQL API (Projects v2, Fields)"]
+        GraphQL["GitHub GraphQL API (Projects v2, Fields, Discussions)"]
     end
 
     subgraph LocalEnv ["Local Environment"]
@@ -68,10 +70,12 @@ graph TD
     BP <-->|VSCode postMessage| EH
     IP <-->|VSCode postMessage| EH
     PRP <-->|VSCode postMessage| EH
+    DP <-->|VSCode postMessage| EH
     FP <-->|VSCode postMessage| EH
 
     EH -->|Updates & Sync| ITP
     EH -->|Updates & Sync| PTP
+    EH -->|Updates & Sync| DTP
     EH -->|Updates & Sync| ATP
     EH -->|Retrieve Tokens| Auth
     EH -->|Execute commands| GitCLI
@@ -202,7 +206,21 @@ Interact with issues and PRs in rich, responsive webviews:
 
 ---
 
-### ⚡ 5. GitHub Actions
+### 🗣️ 5. Discussions
+Read and take part in your repository's **GitHub Discussions** from a dedicated sidebar view:
+- **Grouped by category**: The tree mirrors the Discussions sidebar on github.com — Announcements, General, Ideas, Polls, Q&A, Show and tell — with each discussion showing its author, and a green check on the ones that have an accepted answer.
+- **Threaded replies**: The panel renders top-level comments with their replies indented underneath, and a **Reply** box on each thread. (GitHub allows one level of nesting, and so does RepoDeck.)
+- **The same comment tooling as issues and PRs**: the `⋯` menu with **Copy link**, **Copy Markdown**, **Quote reply** and **Edit**, plus the Write/Preview Markdown editor. Quoting a comment inside a thread drops the quote into that thread's reply box; quoting the opening post drops it into the main composer.
+- **Upvotes**: The `↑ n` pill on the opening post and on every comment, click to add or remove your vote.
+- **Q&A answers**: In answerable categories, mark or unmark a comment as the accepted answer — it gets a green frame and an ✓ Answer badge, and the tree icon updates.
+- **Housekeeping**: Close or reopen a discussion, rename it, and move it to a different category.
+- **New Discussion**: The `+` in the view title opens a form with a category picker and a Markdown body.
+
+> Discussions are a **GraphQL-only** API — there is no REST equivalent — so this whole view goes through `octokit.graphql`. If a repository has Discussions turned off, the view says so rather than erroring.
+
+---
+
+### ⚡ 6. GitHub Actions
 Monitor and manage your CI/CD without leaving the editor, from a dedicated **GitHub Actions** sidebar view:
 - **Current Branch & Workflows**: Browse recent workflow runs for the branch you have checked out, or grouped under each workflow. Expand a run to see its **jobs**, and each job to see its **steps** (`Set up job`, `Run actions/checkout@v4`, …) with live status icons — green check, red error, spinner for in-progress, and slashed circle for cancelled/skipped.
 - **Open on GitHub**: A globe icon on any run or job opens it on github.com to inspect the full logs.

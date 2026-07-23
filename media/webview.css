@@ -752,6 +752,124 @@ aside .chip {
 	font-size: 0.9em;
 	white-space: nowrap;
 }
+
+/* ---- Discussion ---- */
+
+/* The panel reuses `.issue` for its shell; everything below is what a discussion has and
+   an issue doesn't — nested replies, upvotes, and an accepted answer. */
+
+/* A comment wrapped for its answer badge still has to be the row's flex child. */
+.tl-row > .tl-body {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.discussion h1 .gear {
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.6em;
+	padding: 2px 6px;
+	border-radius: 3px;
+	vertical-align: middle;
+}
+.discussion h1 .gear:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.discussion .count {
+	font-size: 1.05em;
+	font-weight: 400;
+	margin: 0 0 14px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+/* Top-level comments don't thread into each other the way issue events do, so the shared
+   `.timeline` rail is switched off — a thread draws its own, and only when it has replies
+   to connect. The rail sits at the parent avatar's centre and runs down past the indent. */
+.threads::before {
+	display: none;
+}
+.thread {
+	position: relative;
+	margin-bottom: 18px;
+}
+.thread.has-replies::before {
+	content: '';
+	position: absolute;
+	left: 15px;
+	top: 36px;
+	bottom: 16px;
+	width: 2px;
+	background: var(--vscode-panel-border);
+}
+
+/* Replies are indented under their parent, hanging off that rail. */
+.tl-replies {
+	margin-left: 44px;
+}
+.tl-replies .avatar {
+	width: 26px;
+	height: 26px;
+	font-size: 0.8em;
+}
+.reply-box {
+	margin: 0 0 4px 44px;
+}
+
+.comment-foot {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 10px;
+	padding-top: 8px;
+	border-top: 1px solid var(--vscode-panel-border);
+}
+.comment-foot .link {
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	padding: 0;
+}
+.comment-foot .link:hover {
+	background: transparent;
+	text-decoration: underline;
+}
+
+.upvote {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 10px;
+	padding: 1px 10px;
+	font-size: 0.9em;
+	background: transparent;
+	color: var(--vscode-foreground);
+}
+.upvote:hover:not(:disabled) {
+	border-color: var(--vscode-focusBorder);
+}
+.upvote.on {
+	border-color: var(--vscode-charts-blue);
+	color: var(--vscode-charts-blue);
+}
+.upvote:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+/* The accepted answer, marked the way GitHub marks it: a green frame and a badge. */
+.answered .comment {
+	border-color: var(--vscode-charts-green);
+}
+.answer-badge {
+	margin: 0 0 4px;
+	font-size: 0.85em;
+	font-weight: 600;
+	color: var(--vscode-charts-green);
+}
+
 /* ---- Rendered markdown ---- */
 
 .md {

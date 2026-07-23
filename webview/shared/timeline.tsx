@@ -71,6 +71,8 @@ export function CommentCard(props: {
 	onSave?: (body: string) => void;
 	/** Rendered instead of the body when there's nothing to show. */
 	empty?: ComponentChildren;
+	/** A row under the body — where the discussion panel hangs upvote, answer and reply. */
+	footer?: ComponentChildren;
 }) {
 	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState(props.body);
@@ -134,6 +136,8 @@ export function CommentCard(props: {
 			) : (
 				(props.empty ?? null)
 			)}
+
+			{!editing && props.footer && <footer class="comment-foot">{props.footer}</footer>}
 		</article>
 	);
 }

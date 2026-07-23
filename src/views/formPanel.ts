@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { getOctokit } from '../auth/session';
 import { describe } from '../features/initRepo';
+import { createDiscussion, listCategories } from '../github/discussions';
+import { getRepositoryId } from '../github/graphql';
 import { git, readRepoState } from '../github/repoContext';
 import { renderHtml } from './webviewHost';
 
@@ -49,6 +51,78 @@ export async function openIssueForm(
 					panel.dispose();
 					onCreated();
 					await announce(`RepoDeck: created #${data.number}.`, data.html_url);
+				} catch (err) {
+					panel.webview.postMessage({ type: 'error', message: describe(err) });
+				}
+				return;
+			}
+
+			case 'cancel':
+				panel.dispose();
+				return;
+		}
+	});
+}
+
+/**
+ * The New Discussion form.
+ *
+ * A discussion must be filed in a category, and the category set is per-repository, so the
+ * picker is loaded rather than hard-coded. Creating one is GraphQL, which keys off the
+ * repository's node id rather than owner/name.
+ */
+export async function openDiscussionForm(
+	context: vscode.ExtensionContext,
+	onCreated: () => void,
+): Promise<void> {
+	const [state, octokit] = await Promise.all([readRepoState(), getOctokit(context)]);
+	if (!octokit) {
+		return;
+	}
+	if (!state.ref) {
+		vscode.window.showErrorMessage(
+			'RepoDeck: no GitHub remote for this folder. Run "RepoDeck: Initialize Repository" first.',
+		);
+		return;
+	}
+	const ref = state.ref;
+
+	const categories = await listCategories(octokit, ref).catch(() => []);
+	if (categories.length === 0) {
+		vscode.window.showErrorMessage(
+			'RepoDeck: this repository has no discussion categories. Enable Discussions on GitHub first.',
+		);
+		return;
+	}
+
+	const panel = createPanel(context, 'New Discussion');
+
+	panel.webview.onDidReceiveMessage(async (msg) => {
+		switch (msg?.type) {
+			case 'ready':
+				panel.webview.postMessage({
+					type: 'init',
+					mode: 'discussion',
+					repo: `${ref.owner}/${ref.repo}`,
+					collaborators: [],
+					labels: [],
+					categories,
+				});
+				return;
+
+			case 'submit': {
+				try {
+					const repositoryId = await getRepositoryId(octokit, ref.owner, ref.repo);
+					const created = await createDiscussion(
+						octokit,
+						repositoryId,
+						msg.categoryId,
+						msg.title,
+						msg.body ?? '',
+					);
+					panel.dispose();
+					onCreated();
+					await announce(`RepoDeck: started #${created.number}.`, created.url);
 				} catch (err) {
 					panel.webview.postMessage({ type: 'error', message: describe(err) });
 				}

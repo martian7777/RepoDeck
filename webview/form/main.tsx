@@ -9,8 +9,14 @@ interface Label {
 	color: string;
 }
 
+interface Category {
+	id: string;
+	name: string;
+	emoji: string;
+}
+
 interface Init {
-	mode: 'issue' | 'pr';
+	mode: 'issue' | 'pr' | 'discussion';
 	repo: string;
 	collaborators: string[];
 	labels: Label[];
@@ -19,6 +25,8 @@ interface Init {
 	branches?: string[];
 	defaultBase?: string;
 	suggestedTitle?: string;
+	/** Discussion mode only. */
+	categories?: Category[];
 }
 
 function App() {
@@ -31,6 +39,7 @@ function App() {
 	const [chosenLabels, setChosenLabels] = useState<string[]>([]);
 	const [base, setBase] = useState('');
 	const [draft, setDraft] = useState(false);
+	const [categoryId, setCategoryId] = useState('');
 	const [error, setError] = useState<string | undefined>();
 	const [submitting, setSubmitting] = useState(false);
 
@@ -40,6 +49,7 @@ function App() {
 			if (msg.type === 'init') {
 				setInit(msg);
 				setBase(msg.defaultBase ?? '');
+				setCategoryId(msg.categories?.[0]?.id ?? '');
 				if (msg.suggestedTitle) {
 					setTitle(msg.suggestedTitle);
 				}
@@ -58,7 +68,7 @@ function App() {
 
 	const submit = (e: Event) => {
 		e.preventDefault();
-		if (!title.trim() || !init) {
+		if (!init || !title.trim() || (init.mode === 'discussion' && !categoryId)) {
 			return;
 		}
 		setSubmitting(true);
@@ -66,7 +76,9 @@ function App() {
 		vscode.postMessage(
 			init.mode === 'pr'
 				? { type: 'submit', title, body, base, draft, reviewers, assignees }
-				: { type: 'submit', title, body, assignees, labels: chosenLabels },
+				: init.mode === 'discussion'
+					? { type: 'submit', title, body, categoryId }
+					: { type: 'submit', title, body, assignees, labels: chosenLabels },
 		);
 	};
 
@@ -75,10 +87,12 @@ function App() {
 	}
 
 	const isPr = init.mode === 'pr';
+	const isDiscussion = init.mode === 'discussion';
+	const incomplete = !title.trim() || (isDiscussion && !categoryId);
 
 	return (
 		<form class="form" onSubmit={submit}>
-			<h1>{isPr ? 'New pull request' : 'New issue'}</h1>
+			<h1>{isPr ? 'New pull request' : isDiscussion ? 'New discussion' : 'New issue'}</h1>
 			<p class="muted">
 				{init.repo}
 				{isPr && base && (
@@ -98,6 +112,22 @@ function App() {
 						{(init.branches ?? []).map((b) => (
 							<option key={b} value={b}>
 								{b}
+							</option>
+						))}
+					</select>
+				</label>
+			)}
+
+			{isDiscussion && (
+				<label>
+					Category
+					<select
+						value={categoryId}
+						onChange={(e) => setCategoryId((e.target as HTMLSelectElement).value)}
+					>
+						{(init.categories ?? []).map((c) => (
+							<option key={c.id} value={c.id}>
+								{c.emoji ? `${c.emoji} ${c.name}` : c.name}
 							</option>
 						))}
 					</select>
@@ -173,8 +203,14 @@ function App() {
 			)}
 
 			<div class="actions">
-				<button type="submit" class="primary" disabled={!title.trim() || submitting}>
-					{submitting ? 'Creating…' : isPr ? 'Create pull request' : 'Create issue'}
+				<button type="submit" class="primary" disabled={incomplete || submitting}>
+					{submitting
+						? 'Creating…'
+						: isPr
+							? 'Create pull request'
+							: isDiscussion
+								? 'Start discussion'
+								: 'Create issue'}
 				</button>
 				<button type="button" onClick={() => vscode.postMessage({ type: 'cancel' })}>
 					Cancel

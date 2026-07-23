@@ -13,9 +13,12 @@ import { addIssueToProject } from './github/graphql';
 import { readRepoState, refreshRepoContext, type RepoRef } from './github/repoContext';
 import type { PullSummary } from './github/prs';
 import { openBoard, activeProjectId, refreshBoard, setActiveProject } from './views/boardPanel';
-import { openIssueForm, openPullForm } from './views/formPanel';
+import { openDiscussionForm, openIssueForm, openPullForm } from './views/formPanel';
 import { IssuesTreeProvider, toIssue, type IssueItem } from './views/issuesTree';
 import { openIssuePanel } from './views/issuePanel';
+import { DiscussionsTreeProvider, toDiscussion } from './views/discussionsTree';
+import { openDiscussionPanel } from './views/discussionPanel';
+import type { DiscussionSummary } from './github/discussions';
 import { PullsTreeProvider, toPull } from './views/prTree';
 import { openPullPanel } from './views/prPanel';
 import {
@@ -38,6 +41,7 @@ import {
 /** A view/item command is invoked with the tree element; a row click with the payload. */
 type IssueArg = IssueItem | { issue: IssueItem };
 type PullArg = PullSummary | { pull: PullSummary };
+type DiscussionArg = DiscussionSummary | { discussion: DiscussionSummary };
 
 /**
  * Runs a one-shot Actions mutation (re-run, cancel) with progress and uniform error
@@ -67,17 +71,20 @@ async function runActionOp(
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	const issues = new IssuesTreeProvider(context);
 	const pulls = new PullsTreeProvider(context);
+	const discussions = new DiscussionsTreeProvider(context);
 	const actions = new ActionsTreeProvider(context);
 
 	const refreshAll = () => {
 		issues.refresh();
 		pulls.refresh();
+		discussions.refresh();
 		actions.refresh();
 	};
 
 	context.subscriptions.push(
 		vscode.window.createTreeView('repodeck.issues', { treeDataProvider: issues }),
 		vscode.window.createTreeView('repodeck.pulls', { treeDataProvider: pulls }),
+		vscode.window.createTreeView('repodeck.discussions', { treeDataProvider: discussions }),
 		vscode.window.createTreeView('repodeck.actions', { treeDataProvider: actions }),
 		onDidChangeAuthentication(refreshAll),
 
@@ -186,6 +193,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 		vscode.commands.registerCommand('repodeck.startWorkOnIssue', (arg: IssueArg) =>
 			startWorkOnIssue(context, toIssue(arg)),
+		),
+
+		// ---- Discussions ----
+
+		vscode.commands.registerCommand('repodeck.createDiscussion', () =>
+			openDiscussionForm(context, () => discussions.refresh()),
+		),
+
+		vscode.commands.registerCommand('repodeck.refreshDiscussions', async () => {
+			await refreshRepoContext();
+			discussions.refresh();
+		}),
+
+		vscode.commands.registerCommand('repodeck.openDiscussion', (arg: DiscussionArg) =>
+			openDiscussionPanel(context, toDiscussion(arg).number, () => discussions.refresh()),
+		),
+
+		vscode.commands.registerCommand('repodeck.openDiscussionOnGitHub', (arg: DiscussionArg) =>
+			vscode.env.openExternal(vscode.Uri.parse(toDiscussion(arg).url)),
 		),
 
 		// ---- Board ----
