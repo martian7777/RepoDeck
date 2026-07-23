@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { describe } from '../features/initRepo';
 
 function nonce(): string {
 	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -36,4 +37,30 @@ export function renderHtml(
 <script nonce="${n}" src="${script}"></script>
 </body>
 </html>`;
+}
+
+/**
+ * Wires a panel's message handler so the webview always learns when an action settled.
+ *
+ * A button that spins until it hears back must never be left spinning, so the acknowledgement
+ * fires from `finally` — that covers the handler's early returns, which post nothing at all.
+ * Messages without an `opId` (`ready`, `refresh`, the copy actions) are simply not tracked.
+ */
+export function onPanelMessage(
+	panel: vscode.WebviewPanel,
+	handle: (msg: any) => Promise<void>,
+): void {
+	panel.webview.onDidReceiveMessage(async (msg) => {
+		let ok = true;
+		try {
+			await handle(msg);
+		} catch (err) {
+			panel.webview.postMessage({ type: 'actionError', message: describe(err) });
+			ok = false;
+		} finally {
+			if (typeof msg?.opId === 'number') {
+				panel.webview.postMessage({ type: 'done', opId: msg.opId, ok });
+			}
+		}
+	});
 }

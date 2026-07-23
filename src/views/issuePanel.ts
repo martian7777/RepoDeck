@@ -19,7 +19,7 @@ import {
 	setProjectStatus,
 	type SidebarContext,
 } from './sidebarActions';
-import { renderHtml } from './webviewHost';
+import { onPanelMessage, renderHtml } from './webviewHost';
 
 const panels = new Map<number, vscode.WebviewPanel>();
 
@@ -84,7 +84,7 @@ export async function openIssuePanel(
 		}
 	};
 
-	panel.webview.onDidReceiveMessage(async (msg) => {
+	onPanelMessage(panel, async (msg) => {
 		const state = await readRepoState();
 		const client = await getOctokit(context, false);
 		if (!state.ref || !client) {
@@ -93,98 +93,94 @@ export async function openIssuePanel(
 		const ref = state.ref;
 		const sidebar: SidebarContext = { context, client, ref, number };
 
-		try {
-			switch (msg?.type) {
-				case 'ready':
-				case 'refresh':
+		switch (msg?.type) {
+			case 'ready':
+			case 'refresh':
+				await push();
+				return;
+
+			case 'comment':
+				if (msg.body?.trim()) {
+					await commentOnIssue(client, ref, number, msg.body);
 					await push();
-					return;
+				}
+				return;
 
-				case 'comment':
-					if (msg.body?.trim()) {
-						await commentOnIssue(client, ref, number, msg.body);
-						await push();
-					}
-					return;
+			case 'setState':
+				await setIssueState(client, ref, number, msg.state);
+				await push();
+				onChanged();
+				return;
 
-				case 'setState':
-					await setIssueState(client, ref, number, msg.state);
+			case 'openExternal':
+				await vscode.env.openExternal(vscode.Uri.parse(msg.url));
+				return;
+
+			// ---- Comment actions ----
+
+			case 'copyLink':
+				await vscode.env.clipboard.writeText(msg.url);
+				vscode.window.setStatusBarMessage('RepoDeck: link copied.', 2000);
+				return;
+
+			case 'copyMarkdown':
+				await vscode.env.clipboard.writeText(msg.body ?? '');
+				vscode.window.setStatusBarMessage('RepoDeck: Markdown copied.', 2000);
+				return;
+
+			case 'editComment':
+				if (typeof msg.id === 'number') {
+					await updateComment(client, ref, msg.id, msg.body ?? '');
+					await push();
+				}
+				return;
+
+			case 'editBody':
+				await updateBody(client, ref, number, msg.body ?? '');
+				await push();
+				onChanged();
+				return;
+
+			// ---- Sidebar edits ----
+
+			case 'editAssignees':
+				if (await editAssignees(sidebar, msg.current ?? [])) {
 					await push();
 					onChanged();
-					return;
+				}
+				return;
 
-				case 'openExternal':
-					await vscode.env.openExternal(vscode.Uri.parse(msg.url));
-					return;
-
-				// ---- Comment actions ----
-
-				case 'copyLink':
-					await vscode.env.clipboard.writeText(msg.url);
-					vscode.window.setStatusBarMessage('RepoDeck: link copied.', 2000);
-					return;
-
-				case 'copyMarkdown':
-					await vscode.env.clipboard.writeText(msg.body ?? '');
-					vscode.window.setStatusBarMessage('RepoDeck: Markdown copied.', 2000);
-					return;
-
-				case 'editComment':
-					if (typeof msg.id === 'number') {
-						await updateComment(client, ref, msg.id, msg.body ?? '');
-						await push();
-					}
-					return;
-
-				case 'editBody':
-					await updateBody(client, ref, number, msg.body ?? '');
+			case 'editLabels':
+				if (await editLabels(sidebar, msg.current ?? [])) {
 					await push();
 					onChanged();
-					return;
+				}
+				return;
 
-				// ---- Sidebar edits ----
-
-				case 'editAssignees':
-					if (await editAssignees(sidebar, msg.current ?? [])) {
-						await push();
-						onChanged();
-					}
-					return;
-
-				case 'editLabels':
-					if (await editLabels(sidebar, msg.current ?? [])) {
-						await push();
-						onChanged();
-					}
-					return;
-
-				case 'editMilestone':
-					if (await editMilestone(sidebar)) {
-						await push();
-					}
-					return;
-
-				// ---- Projects ----
-
-				case 'addToProject':
-					if (await addToProject(sidebar, msg.nodeId, msg.current ?? [])) {
-						await push();
-					}
-					return;
-
-				case 'setProjectStatus':
-					await setProjectStatus(sidebar, msg);
+			case 'editMilestone':
+				if (await editMilestone(sidebar)) {
 					await push();
-					return;
+				}
+				return;
 
-				case 'removeFromProject':
-					if (await removeFromProject(sidebar, msg)) {
-						await push();
-					}
-					return;
-			}
-		} catch (err) {
-			panel.webview.postMessage({ type: 'actionError', message: describe(err) });
+			// ---- Projects ----
+
+			case 'addToProject':
+				if (await addToProject(sidebar, msg.nodeId, msg.current ?? [])) {
+					await push();
+				}
+				return;
+
+			case 'setProjectStatus':
+				await setProjectStatus(sidebar, msg);
+				await push();
+				return;
+
+			case 'removeFromProject':
+				if (await removeFromProject(sidebar, msg)) {
+					await push();
+				}
+				return;
 		}
 	});
 }

@@ -2,6 +2,7 @@ import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Editor } from '../shared/editor';
 import { quote } from '../shared/commentMenu';
+import { ActionButton, useOps } from '../shared/ops';
 import { Timeline, type TimelineEntry } from '../shared/timeline';
 import { LabelList, LoginList, Projects, Section, type ProjectLink } from '../shared/sidebar';
 
@@ -35,6 +36,7 @@ function App() {
 	const [loading, setLoading] = useState(true);
 	const [draft, setDraft] = useState('');
 	const composer = useRef<HTMLTextAreaElement | null>(null);
+	const ops = useOps(vscode, () => setActionError(undefined));
 
 	useEffect(() => {
 		const onMessage = (e: MessageEvent) => {
@@ -67,10 +69,7 @@ function App() {
 		return <div class="state">{loading ? 'Loading issue…' : 'Nothing to show.'}</div>;
 	}
 
-	const send = (msg: Record<string, unknown>) => {
-		setActionError(undefined);
-		vscode.postMessage(msg);
-	};
+	const send = ops.post;
 	const closed = issue.state === 'closed';
 
 	const quoteReply = (body: string) => {
@@ -87,7 +86,7 @@ function App() {
 		onCopyMarkdown: (body: string) => send({ type: 'copyMarkdown', body }),
 		onQuoteReply: quoteReply,
 		onSaveEdit: (entry: TimelineEntry, body: string) =>
-			send({ type: 'editComment', id: entry.id, body }),
+			ops.run(`edit:${entry.id}`, { type: 'editComment', id: entry.id, body }),
 	};
 
 	return (
@@ -125,7 +124,7 @@ function App() {
 							verb: 'opened this issue',
 							url: issue.url,
 							canEdit: issue.author === viewer,
-							onSave: (body) => send({ type: 'editBody', body }),
+							onSave: (body) => ops.run('editBody', { type: 'editBody', body }),
 							empty: <p class="muted">No description provided.</p>,
 						}}
 						entries={issue.timeline}
@@ -140,16 +139,22 @@ function App() {
 							textareaRef={composer}
 							footer={
 								<>
-									<button onClick={() => send({ type: 'setState', state: closed ? 'open' : 'closed' })}>
-										{closed ? 'Reopen issue' : 'Close issue'}
-									</button>
-									<button
+									<ActionButton
+										busy={ops.busy('state')}
+										label={closed ? 'Reopen issue' : 'Close issue'}
+										busyLabel={closed ? 'Reopening…' : 'Closing…'}
+										onClick={() =>
+											ops.run('state', { type: 'setState', state: closed ? 'open' : 'closed' })
+										}
+									/>
+									<ActionButton
 										class="primary"
+										busy={ops.busy('comment')}
 										disabled={!draft.trim()}
-										onClick={() => send({ type: 'comment', body: draft })}
-									>
-										Comment
-									</button>
+										label="Comment"
+										busyLabel="Commenting…"
+										onClick={() => ops.run('comment', { type: 'comment', body: draft })}
+									/>
 								</>
 							}
 						/>

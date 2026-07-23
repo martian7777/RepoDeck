@@ -2,6 +2,7 @@ import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Editor } from '../shared/editor';
 import { quote } from '../shared/commentMenu';
+import { ActionButton, useOps } from '../shared/ops';
 import { Avatar, CommentCard, type CommentActions } from '../shared/timeline';
 import { LabelList, Participants, Section } from '../shared/sidebar';
 
@@ -89,6 +90,7 @@ function App() {
 
 	const composer = useRef<HTMLTextAreaElement | null>(null);
 	const replyBox = useRef<HTMLTextAreaElement | null>(null);
+	const ops = useOps(vscode, () => setActionError(undefined));
 
 	useEffect(() => {
 		const onMessage = (e: MessageEvent) => {
@@ -123,10 +125,7 @@ function App() {
 		return <div class="state">{loading ? 'Loading discussion…' : 'Nothing to show.'}</div>;
 	}
 
-	const send = (msg: Record<string, unknown>) => {
-		setActionError(undefined);
-		vscode.postMessage(msg);
-	};
+	const send = ops.post;
 
 	const focus = (area: { current: HTMLTextAreaElement | null }) =>
 		requestAnimationFrame(() => {
@@ -210,7 +209,9 @@ function App() {
 							url={comment.url}
 							actions={actions}
 							canEdit={comment.viewerCanUpdate}
-							onSave={(body) => send({ type: 'editComment', id: comment.id, body })}
+							onSave={(body) =>
+								ops.run(`edit:${comment.id}`, { type: 'editComment', id: comment.id, body })
+							}
 							footer={footer(comment, true)}
 						/>
 					</div>
@@ -230,7 +231,9 @@ function App() {
 									url={reply.url}
 									actions={actions}
 									canEdit={reply.viewerCanUpdate}
-									onSave={(body) => send({ type: 'editComment', id: reply.id, body })}
+									onSave={(body) =>
+										ops.run(`edit:${reply.id}`, { type: 'editComment', id: reply.id, body })
+									}
 									// Replies can't be replied to — GitHub allows one level.
 									footer={footer(reply, false)}
 								/>
@@ -250,13 +253,20 @@ function App() {
 							footer={
 								<>
 									<button onClick={() => setReplyTo(undefined)}>Cancel</button>
-									<button
+									<ActionButton
 										class="primary"
+										busy={ops.busy(`reply:${comment.id}`)}
 										disabled={!replyDraft.trim()}
-										onClick={() => send({ type: 'reply', replyToId: comment.id, body: replyDraft })}
-									>
-										Reply
-									</button>
+										label="Reply"
+										busyLabel="Replying…"
+										onClick={() =>
+											ops.run(`reply:${comment.id}`, {
+												type: 'reply',
+												replyToId: comment.id,
+												body: replyDraft,
+											})
+										}
+									/>
 								</>
 							}
 						/>
@@ -314,7 +324,7 @@ function App() {
 								url={discussion.url}
 								actions={leadActions}
 								canEdit={discussion.viewerCanUpdate}
-								onSave={(body) => send({ type: 'editBody', body })}
+								onSave={(body) => ops.run('editBody', { type: 'editBody', body })}
 								empty={<p class="muted">No description provided.</p>}
 								footer={
 									<Upvote
@@ -350,17 +360,23 @@ function App() {
 								footer={
 									<>
 										{discussion.viewerCanUpdate && (
-											<button onClick={() => send({ type: 'setState', closed: !discussion.closed })}>
-												{discussion.closed ? 'Reopen discussion' : 'Close discussion'}
-											</button>
+											<ActionButton
+												busy={ops.busy('state')}
+												label={discussion.closed ? 'Reopen discussion' : 'Close discussion'}
+												busyLabel={discussion.closed ? 'Reopening…' : 'Closing…'}
+												onClick={() =>
+													ops.run('state', { type: 'setState', closed: !discussion.closed })
+												}
+											/>
 										)}
-										<button
+										<ActionButton
 											class="primary"
+											busy={ops.busy('comment')}
 											disabled={!draft.trim()}
-											onClick={() => send({ type: 'comment', body: draft })}
-										>
-											Comment
-										</button>
+											label="Comment"
+											busyLabel="Commenting…"
+											onClick={() => ops.run('comment', { type: 'comment', body: draft })}
+										/>
 									</>
 								}
 							/>

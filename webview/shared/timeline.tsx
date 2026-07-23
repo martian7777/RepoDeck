@@ -3,6 +3,7 @@ import { useState } from 'preact/hooks';
 import { Markdown } from './markdown';
 import { Editor } from './editor';
 import { CommentMenu } from './commentMenu';
+import { ActionButton } from './ops';
 import { ago, exact } from './time';
 
 export interface TimelineEntry {
@@ -51,8 +52,13 @@ export interface CommentActions {
 	onCopyLink: (url: string) => void;
 	onCopyMarkdown: (body: string) => void;
 	onQuoteReply: (body: string) => void;
-	/** Saves an edited body. Absent for entries that can't be edited through the API. */
-	onSaveEdit?: (entry: TimelineEntry, body: string) => void;
+	/**
+	 * Saves an edited body. Absent for entries that can't be edited through the API.
+	 *
+	 * Resolving `false` keeps the editor open with the draft intact, so a rejected edit
+	 * doesn't throw away what the user wrote.
+	 */
+	onSaveEdit?: (entry: TimelineEntry, body: string) => Promise<boolean> | void;
 }
 
 /** One comment card: header, `…` menu, body — or an inline editor while being edited. */
@@ -68,18 +74,30 @@ export function CommentCard(props: {
 	url?: string;
 	actions: CommentActions;
 	canEdit: boolean;
-	onSave?: (body: string) => void;
+	onSave?: (body: string) => Promise<boolean> | void;
 	/** Rendered instead of the body when there's nothing to show. */
 	empty?: ComponentChildren;
 	/** A row under the body — where the discussion panel hangs upvote, answer and reply. */
 	footer?: ComponentChildren;
 }) {
 	const [editing, setEditing] = useState(false);
+	const [saving, setSaving] = useState(false);
 	const [draft, setDraft] = useState(props.body);
 
 	const start = () => {
 		setDraft(props.body);
 		setEditing(true);
+	};
+
+	// The editor stays open until the host confirms the edit landed — closing it early would
+	// snap the card back to the old body until the refetch arrives.
+	const save = async () => {
+		setSaving(true);
+		const ok = await props.onSave?.(draft);
+		setSaving(false);
+		if (ok !== false) {
+			setEditing(false);
+		}
 	};
 
 	return (
@@ -117,17 +135,17 @@ export function CommentCard(props: {
 					autoFocus
 					footer={
 						<>
-							<button onClick={() => setEditing(false)}>Cancel</button>
-							<button
-								class="primary"
-								disabled={!draft.trim()}
-								onClick={() => {
-									props.onSave?.(draft);
-									setEditing(false);
-								}}
-							>
-								Update comment
+							<button disabled={saving} onClick={() => setEditing(false)}>
+								Cancel
 							</button>
+							<ActionButton
+								class="primary"
+								busy={saving}
+								disabled={!draft.trim()}
+								label="Update comment"
+								busyLabel="Updating…"
+								onClick={save}
+							/>
 						</>
 					}
 				/>

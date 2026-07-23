@@ -35,6 +35,22 @@ button:disabled {
 	cursor: default;
 }
 
+/* The spinner a button wears while its action is in flight. currentColor covers both the
+   secondary and .primary fills with one rule, and the disabled dimming is eased off so the
+   label stays readable — a busy button is working, not unavailable. */
+button .spinner {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	margin-right: 6px;
+	vertical-align: -1px;
+	border: 2px solid currentColor;
+	border-top-color: transparent;
+}
+button.busy:disabled {
+	opacity: 0.8;
+}
+
 .muted {
 	color: var(--vscode-descriptionForeground);
 }

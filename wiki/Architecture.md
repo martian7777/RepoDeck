@@ -56,11 +56,14 @@ The Extension Host and Webviews communicate asynchronously using VS Code's `post
 - `{ type: 'changeProject' }` - Clears the workspace's default project board configuration and prompts selection.
 - `{ type: 'moveCard', itemId, fieldId, optionId }` - Signals that a Kanban card was dragged into a column.
 - `{ type: 'openCard', url }` - Asks the host to open an issue or PR link in the default browser.
+- `{ …, opId }` - Any message may carry an `opId`. The host echoes it back once the work settles, which is how an action button knows to stop spinning.
 
 ### Backend to Frontend Messages
 - `{ type: 'loading' }` - Sets the webview into a loading/spinner state.
 - `{ type: 'board', board }` - Delivers the Project Board data payload.
 - `{ type: 'error', message }` - Communicates an error status to render in place of the UI.
+- `{ type: 'actionError', message }` - Reports a failed action without replacing the UI the webview is already showing.
+- `{ type: 'done', opId, ok }` - Acknowledges the message that carried `opId`. Sent from a `finally`, so early returns and cancelled quick picks are acknowledged too — a button that waits on this must never be left waiting.
 
 ---
 

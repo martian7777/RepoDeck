@@ -13,7 +13,7 @@ import {
 	updateDiscussion,
 	type DiscussionDetail,
 } from '../github/discussions';
-import { renderHtml } from './webviewHost';
+import { onPanelMessage, renderHtml } from './webviewHost';
 
 /** One panel per discussion number, reused if it's already open. */
 const panels = new Map<number, vscode.WebviewPanel>();
@@ -87,7 +87,7 @@ export async function openDiscussionPanel(
 		}
 	};
 
-	panel.webview.onDidReceiveMessage(async (msg) => {
+	onPanelMessage(panel, async (msg) => {
 		const state = await readRepoState();
 		const client = await getOctokit(context, false);
 		if (!state.ref || !client) {
@@ -99,128 +99,124 @@ export async function openDiscussionPanel(
 		// knows. It's always there by the time the webview can post one of these.
 		const current = cache.get(number);
 
-		try {
-			switch (msg?.type) {
-				case 'ready':
-				case 'refresh':
+		switch (msg?.type) {
+			case 'ready':
+			case 'refresh':
+				await push();
+				return;
+
+			case 'comment':
+				if (current && msg.body?.trim()) {
+					await addComment(client, current.id, msg.body);
 					await push();
-					return;
+					onChanged();
+				}
+				return;
 
-				case 'comment':
-					if (current && msg.body?.trim()) {
-						await addComment(client, current.id, msg.body);
-						await push();
-						onChanged();
-					}
-					return;
+			// A reply always hangs off a top-level comment — GitHub rejects a reply to a
+			// reply, so the webview only offers this on the outer cards.
+			case 'reply':
+				if (current && typeof msg.replyToId === 'string' && msg.body?.trim()) {
+					await addComment(client, current.id, msg.body, msg.replyToId);
+					await push();
+					onChanged();
+				}
+				return;
 
-				// A reply always hangs off a top-level comment — GitHub rejects a reply to a
-				// reply, so the webview only offers this on the outer cards.
-				case 'reply':
-					if (current && typeof msg.replyToId === 'string' && msg.body?.trim()) {
-						await addComment(client, current.id, msg.body, msg.replyToId);
-						await push();
-						onChanged();
-					}
-					return;
+			case 'openExternal':
+				await vscode.env.openExternal(vscode.Uri.parse(msg.url));
+				return;
 
-				case 'openExternal':
-					await vscode.env.openExternal(vscode.Uri.parse(msg.url));
-					return;
+			// ---- Comment actions ----
 
-				// ---- Comment actions ----
+			case 'copyLink':
+				await vscode.env.clipboard.writeText(msg.url);
+				vscode.window.setStatusBarMessage('RepoDeck: link copied.', 2000);
+				return;
 
-				case 'copyLink':
-					await vscode.env.clipboard.writeText(msg.url);
-					vscode.window.setStatusBarMessage('RepoDeck: link copied.', 2000);
-					return;
+			case 'copyMarkdown':
+				await vscode.env.clipboard.writeText(msg.body ?? '');
+				vscode.window.setStatusBarMessage('RepoDeck: Markdown copied.', 2000);
+				return;
 
-				case 'copyMarkdown':
-					await vscode.env.clipboard.writeText(msg.body ?? '');
-					vscode.window.setStatusBarMessage('RepoDeck: Markdown copied.', 2000);
-					return;
+			// Discussion ids are opaque node id strings, not the numbers the issue and
+			// pull request panels edit through.
+			case 'editComment':
+				if (typeof msg.id === 'string') {
+					await updateCommentBody(client, msg.id, msg.body ?? '');
+					await push();
+				}
+				return;
 
-				// Discussion ids are opaque node id strings, not the numbers the issue and
-				// pull request panels edit through.
-				case 'editComment':
-					if (typeof msg.id === 'string') {
-						await updateCommentBody(client, msg.id, msg.body ?? '');
-						await push();
-					}
-					return;
+			case 'editBody':
+				if (current) {
+					await updateDiscussion(client, current.id, { body: msg.body ?? '' });
+					await push();
+				}
+				return;
 
-				case 'editBody':
-					if (current) {
-						await updateDiscussion(client, current.id, { body: msg.body ?? '' });
-						await push();
-					}
-					return;
+			// ---- Discussion edits ----
 
-				// ---- Discussion edits ----
-
-				case 'editTitle': {
-					if (!current) {
-						return;
-					}
-					const title = await vscode.window.showInputBox({
-						title: 'RepoDeck: rename discussion',
-						value: current.title,
-						validateInput: (v) => (v.trim().length === 0 ? 'Title cannot be empty.' : undefined),
-					});
-					if (title && title.trim() !== current.title) {
-						await updateDiscussion(client, current.id, { title: title.trim() });
-						await push();
-						onChanged();
-					}
+			case 'editTitle': {
+				if (!current) {
 					return;
 				}
-
-				case 'editCategory': {
-					if (!current) {
-						return;
-					}
-					const categories = await listCategories(client, ref);
-					const picked = await vscode.window.showQuickPick(
-						categories.map((c) => ({
-							label: c.emoji ? `${c.emoji} ${c.name}` : c.name,
-							description: c.id === current.category.id ? 'current' : undefined,
-							id: c.id,
-						})),
-						{ title: 'RepoDeck: move discussion to category' },
-					);
-					if (picked && picked.id !== current.category.id) {
-						await updateDiscussion(client, current.id, { categoryId: picked.id });
-						await push();
-						onChanged();
-					}
-					return;
+				const title = await vscode.window.showInputBox({
+					title: 'RepoDeck: rename discussion',
+					value: current.title,
+					validateInput: (v) => (v.trim().length === 0 ? 'Title cannot be empty.' : undefined),
+				});
+				if (title && title.trim() !== current.title) {
+					await updateDiscussion(client, current.id, { title: title.trim() });
+					await push();
+					onChanged();
 				}
-
-				case 'setState':
-					if (current) {
-						await setDiscussionClosed(client, current.id, msg.closed === true);
-						await push();
-						onChanged();
-					}
-					return;
-
-				case 'upvote':
-					if (typeof msg.subjectId === 'string') {
-						await setUpvote(client, msg.subjectId, msg.on === true);
-						await push();
-					}
-					return;
-
-				case 'markAnswer':
-					if (typeof msg.id === 'string') {
-						await setAnswer(client, msg.id, msg.on === true);
-						await push();
-						onChanged();
-					}
-					return;
+				return;
 			}
-		} catch (err) {
-			panel.webview.postMessage({ type: 'actionError', message: describe(err) });
+
+			case 'editCategory': {
+				if (!current) {
+					return;
+				}
+				const categories = await listCategories(client, ref);
+				const picked = await vscode.window.showQuickPick(
+					categories.map((c) => ({
+						label: c.emoji ? `${c.emoji} ${c.name}` : c.name,
+						description: c.id === current.category.id ? 'current' : undefined,
+						id: c.id,
+					})),
+					{ title: 'RepoDeck: move discussion to category' },
+				);
+				if (picked && picked.id !== current.category.id) {
+					await updateDiscussion(client, current.id, { categoryId: picked.id });
+					await push();
+					onChanged();
+				}
+				return;
+			}
+
+			case 'setState':
+				if (current) {
+					await setDiscussionClosed(client, current.id, msg.closed === true);
+					await push();
+					onChanged();
+				}
+				return;
+
+			case 'upvote':
+				if (typeof msg.subjectId === 'string') {
+					await setUpvote(client, msg.subjectId, msg.on === true);
+					await push();
+				}
+				return;
+
+			case 'markAnswer':
+				if (typeof msg.id === 'string') {
+					await setAnswer(client, msg.id, msg.on === true);
+					await push();
+					onChanged();
+				}
+				return;
 		}
 	});
 }

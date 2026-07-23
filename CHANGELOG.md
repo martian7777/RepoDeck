@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.8
+
+- Action buttons in the issue, pull request and discussion panels now **spin while the work
+  is in flight** — `Merging…`, `Commenting…`, `Replying…`, `Closing…` — and stay disabled
+  until the extension host reports back. A slow network no longer leaves a button looking
+  idle and clickable, so a second click can't fire a duplicate mutation.
+- Covers Comment, Reply, Close/Reopen, Merge, Check out, Ready for review, Convert to
+  draft, Approve, Request changes, and Update comment.
+- **Update comment** keeps its editor open until the edit is confirmed. It used to close
+  immediately, showing the old text until the refetch landed; a rejected edit now leaves
+  the draft in the box next to the error instead of discarding it.
+
 ## 0.9.7
 
 - New **Discussions** sidebar view, grouped by the repository's own categories the way

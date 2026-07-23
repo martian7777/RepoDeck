@@ -2,6 +2,7 @@ import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Editor } from '../shared/editor';
 import { quote } from '../shared/commentMenu';
+import { ActionButton, useOps, type Ops } from '../shared/ops';
 import { Avatar, Timeline, type TimelineEntry } from '../shared/timeline';
 import {
 	LabelList,
@@ -81,6 +82,7 @@ function App() {
 	const [draft, setDraft] = useState('');
 	const [tab, setTab] = useState<'conversation' | 'commits'>('conversation');
 	const composer = useRef<HTMLTextAreaElement | null>(null);
+	const ops = useOps(vscode, () => setActionError(undefined));
 
 	useEffect(() => {
 		const onMessage = (e: MessageEvent) => {
@@ -116,10 +118,7 @@ function App() {
 	const closed = pr.state === 'closed';
 	const active = !closed && !pr.merged;
 
-	const send = (msg: Record<string, unknown>) => {
-		setActionError(undefined);
-		vscode.postMessage(msg);
-	};
+	const send = ops.post;
 
 	// Quote reply lands in the composer, which means switching back to Conversation if the
 	// user is looking at Commits.
@@ -138,7 +137,7 @@ function App() {
 		onCopyMarkdown: (body: string) => send({ type: 'copyMarkdown', body }),
 		onQuoteReply: quoteReply,
 		onSaveEdit: (entry: TimelineEntry, body: string) =>
-			send({
+			ops.run(`edit:${entry.id}`, {
 				type: entry.commentKind === 'review' ? 'editReview' : 'editComment',
 				id: entry.id,
 				body,
@@ -207,7 +206,7 @@ function App() {
 									verb: 'commented',
 									url: pr.url,
 									canEdit: own,
-									onSave: (body) => send({ type: 'editBody', body }),
+									onSave: (body) => ops.run('editBody', { type: 'editBody', body }),
 									empty: <p class="muted">No description provided.</p>,
 								}}
 								entries={pr.timeline}
@@ -216,7 +215,7 @@ function App() {
 
 							{pr.checks.length > 0 && <Checks checks={pr.checks} send={send} />}
 
-							{active && <MergeBox pr={pr} send={send} />}
+							{active && <MergeBox pr={pr} ops={ops} />}
 
 							<section class="compose">
 								<h2>Add a comment</h2>
@@ -232,22 +231,29 @@ function App() {
 									footer={
 										<>
 											{active && (
-												<button onClick={() => send({ type: 'setState', state: 'closed' })}>
-													Close pull request
-												</button>
+												<ActionButton
+													busy={ops.busy('state')}
+													label="Close pull request"
+													busyLabel="Closing…"
+													onClick={() => ops.run('state', { type: 'setState', state: 'closed' })}
+												/>
 											)}
 											{closed && !pr.merged && (
-												<button onClick={() => send({ type: 'setState', state: 'open' })}>
-													Reopen pull request
-												</button>
+												<ActionButton
+													busy={ops.busy('state')}
+													label="Reopen pull request"
+													busyLabel="Reopening…"
+													onClick={() => ops.run('state', { type: 'setState', state: 'open' })}
+												/>
 											)}
-											<button
+											<ActionButton
 												class="primary"
+												busy={ops.busy('comment')}
 												disabled={!draft.trim()}
-												onClick={() => send({ type: 'comment', body: draft })}
-											>
-												Comment
-											</button>
+												label="Comment"
+												busyLabel="Commenting…"
+												onClick={() => ops.run('comment', { type: 'comment', body: draft })}
+											/>
 										</>
 									}
 								/>
@@ -255,22 +261,32 @@ function App() {
 								{/* GitHub refuses reviews on your own pull request, so don't offer them. */}
 								{active && !own && (
 									<div class="actions review">
-										<button onClick={() => send({ type: 'review', event: 'APPROVE', body: draft })}>
-											Approve
-										</button>
-										<button
+										<ActionButton
+											busy={ops.busy('approve')}
+											label="Approve"
+											busyLabel="Approving…"
+											onClick={() =>
+												ops.run('approve', { type: 'review', event: 'APPROVE', body: draft })
+											}
+										/>
+										<ActionButton
+											busy={ops.busy('requestChanges')}
 											disabled={!draft.trim()}
+											label="Request changes"
+											busyLabel="Requesting…"
 											title={
 												draft.trim()
 													? undefined
 													: 'GitHub requires a comment when requesting changes'
 											}
 											onClick={() =>
-												send({ type: 'review', event: 'REQUEST_CHANGES', body: draft })
+												ops.run('requestChanges', {
+													type: 'review',
+													event: 'REQUEST_CHANGES',
+													body: draft,
+												})
 											}
-										>
-											Request changes
-										</button>
+										/>
 									</div>
 								)}
 							</section>
@@ -406,7 +422,7 @@ function Checks({ checks, send }: { checks: Check[]; send: (msg: Record<string, 
 }
 
 /** Conflict status plus every action that changes the PR's state. */
-function MergeBox({ pr, send }: { pr: Pr; send: (msg: Record<string, unknown>) => void }) {
+function MergeBox({ pr, ops }: { pr: Pr; ops: Ops }) {
 	const [method, setMethod] = useState('merge');
 	const blocked = pr.draft || pr.mergeable === false;
 
@@ -440,9 +456,12 @@ function MergeBox({ pr, send }: { pr: Pr; send: (msg: Record<string, unknown>) =
 						</option>
 					))}
 				</select>
-				<button
+				<ActionButton
 					class="primary"
+					busy={ops.busy('merge')}
 					disabled={blocked}
+					label="Merge pull request"
+					busyLabel="Merging…"
 					title={
 						pr.draft
 							? 'Draft pull requests cannot be merged'
@@ -450,16 +469,22 @@ function MergeBox({ pr, send }: { pr: Pr; send: (msg: Record<string, unknown>) =
 								? `Conflicts with ${pr.baseRef}`
 								: undefined
 					}
-					onClick={() => send({ type: 'merge', method })}
-				>
-					Merge pull request
-				</button>
-				<button onClick={() => send({ type: 'checkout' })}>Check out</button>
-				{pr.draft ? (
-					<button onClick={() => send({ type: 'readyForReview' })}>Ready for review</button>
-				) : (
-					<button onClick={() => send({ type: 'convertToDraft' })}>Convert to draft</button>
-				)}
+					onClick={() => ops.run('merge', { type: 'merge', method })}
+				/>
+				<ActionButton
+					busy={ops.busy('checkout')}
+					label="Check out"
+					busyLabel="Checking out…"
+					onClick={() => ops.run('checkout', { type: 'checkout' })}
+				/>
+				<ActionButton
+					busy={ops.busy('draft')}
+					label={pr.draft ? 'Ready for review' : 'Convert to draft'}
+					busyLabel="Updating…"
+					onClick={() =>
+						ops.run('draft', { type: pr.draft ? 'readyForReview' : 'convertToDraft' })
+					}
+				/>
 			</div>
 		</section>
 	);
